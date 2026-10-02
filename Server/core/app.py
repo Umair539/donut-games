@@ -1,0 +1,192 @@
+import asyncio
+import json
+import os
+import time
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+import uvicorn
+from fastapi import FastAPI, WebSocket
+from fastapi.staticfiles import StaticFiles
+
+from Server.core.base import GameError
+from Server.core.rooms import RoomError, RoomManager
+from Server.games import GAMES
+
+WEB_DIR = Path(__file__).resolve().parent.parent.parent / "web"
+MAX_MESSAGE_SIZE = 1024  # characters, plenty for any valid message
+SWEEP_INTERVAL = 5  # seconds between checks for expired seats and dead rooms
+
+rooms = RoomManager()
+
+
+async def send(socket, message):
+    try:
+        await socket.send_json(message)
+    except Exception:
+        pass  # socket already closed, its own handler cleans up
+
+
+async def close(socket, message):
+    await send(socket, {"type": "closed", "message": message})
+    try:
+        await socket.close()
+    except Exception:
+        pass
+
+
+async def broadcast(room):
+    """Send each connected player their own view of the room."""
+    for seat in room.connected_seats():
+        await send(seat.socket, room.state_for(seat))
+
+
+async def shut_down(room, message):
+    for seat in room.connected_seats():
+        await close(seat.socket, message)
+
+
+async def sweep_forever():
+    while True:
+        await asyncio.sleep(SWEEP_INTERVAL)
+        changed, removed = rooms.sweep(time.monotonic())
+        for room in changed:
+            await broadcast(room)
+        for room in removed:
+            await shut_down(room, room.closed or "Room closed after inactivity")
+
+
+@asynccontextmanager
+async def lifespan(app):
+    task = asyncio.create_task(sweep_forever())
+    yield
+    task.cancel()
+
+
+app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+
+
+class Connection:
+    """One browser tab's WebSocket and the seat it holds, if any."""
+
+    def __init__(self, socket):
+        self.socket = socket
+        self.room = None
+        self.seat = None
+
+    async def handle(self, msg):
+        kind = msg.get("type")
+        now = time.monotonic()
+        if kind in ("create", "join", "rejoin"):
+            if self.room is not None:
+                raise RoomError("Already in a game")
+        elif self.room is None:
+            raise RoomError("Not in a game")
+
+        if kind == "create":
+            room = rooms.create(now, msg.get("game"), msg.get("settings", {}))
+            await self._seated(room, room.join(self.socket, now))
+
+        elif kind == "join":
+            room = rooms.get(msg.get("code"))
+            await self._seated(room, room.join(self.socket, now))
+
+        elif kind == "rejoin":
+            room = rooms.get(msg.get("code"))
+            seat, old = room.rejoin(msg.get("token"), self.socket, now)
+            if old is not None:
+                await close(old, "Game opened somewhere else")
+            await self._seated(room, seat)
+
+        elif kind == "start":
+            self.room.start(self.seat, now)
+            await broadcast(self.room)
+
+        elif kind == "action":
+            self.room.action(self.seat, msg.get("action"), now)
+            await broadcast(self.room)
+
+        elif kind == "rematch":
+            self.room.request_rematch(self.seat, now)
+            await broadcast(self.room)
+
+        elif kind == "leave":
+            room, seat = self.room, self.seat
+            self.room = self.seat = None
+            room.leave(seat)
+            if room.closed:
+                rooms.remove(room)
+                await shut_down(room, room.closed)
+            else:
+                await broadcast(room)
+
+        else:
+            raise RoomError("Unknown message")
+
+    async def _seated(self, room, seat):
+        self.room, self.seat = room, seat
+        await send(
+            self.socket,
+            {"type": "joined", "code": room.code, "player": seat.player, "token": seat.token},
+        )
+        await broadcast(room)
+
+    async def disconnected(self):
+        if self.room is not None:
+            self.room.disconnect(self.seat, self.socket, time.monotonic())
+            await broadcast(self.room)
+
+
+@app.get("/healthz")
+def healthz():
+    return {"ok": True}
+
+
+@app.get("/api/games")
+def list_games():
+    return [game.describe() for game in GAMES.values()]
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(socket: WebSocket):
+    await socket.accept()
+    conn = Connection(socket)
+    try:
+        while True:
+            message = await socket.receive()
+            if message["type"] == "websocket.disconnect":
+                break
+            text = message.get("text")
+            if text is None or len(text) > MAX_MESSAGE_SIZE:
+                await socket.close(code=1009)
+                break
+            try:
+                msg = json.loads(text)
+            except ValueError:
+                msg = None
+            if not isinstance(msg, dict):
+                await send(socket, {"type": "error", "message": "Invalid message"})
+                continue
+            try:
+                await conn.handle(msg)
+            except (RoomError, GameError) as e:
+                await send(socket, {"type": "error", "message": str(e)})
+    finally:
+        await conn.disconnected()
+
+
+# registered last so /ws, /healthz and /api take priority
+app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
+
+
+def run():
+    uvicorn.run(
+        app,
+        host=os.environ.get("HOST", "0.0.0.0"),
+        port=int(os.environ.get("PORT", "8000")),
+        ws_max_size=16 * 1024,
+    )
+
+
+if __name__ == "__main__":
+    run()

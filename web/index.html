@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Donut Games</title>
+  <meta name="description" content="Donut-themed games to play online with friends. Host a game and share the code.">
+  <link rel="icon" href="sprites/pink.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <!-- one stylesheet per game -->
+  <link rel="stylesheet" href="games/connect4/connect4.css">
+</head>
+<body>
+  <main>
+    <section id="screen-connecting" class="screen card center" hidden>
+      <div class="spinner" aria-hidden="true"></div>
+      <p>Getting your game back…</p>
+    </section>
+
+    <section id="screen-home" class="screen" hidden>
+      <header class="hero">
+        <div class="hero-donuts" aria-hidden="true">
+          <img src="sprites/choccy.png" alt="">
+          <img src="sprites/pink.png" alt="">
+        </div>
+        <h1>Donut Games</h1>
+        <p class="tagline">Host a game, then send the code to your friends.</p>
+      </header>
+
+      <div class="card">
+        <h2>Host a game</h2>
+        <div id="game-list" class="game-list"></div>
+        <div class="divider"><span>or join one</span></div>
+        <form id="join-form" class="join-row" autocomplete="off">
+          <label class="sr-only" for="join-code">Game code</label>
+          <input id="join-code" class="code-input" placeholder="CODE" maxlength="4"
+                 inputmode="text" autocapitalize="characters" spellcheck="false" required>
+          <button class="btn" type="submit">Join</button>
+        </form>
+        <p id="home-error" class="error" role="alert" hidden></p>
+      </div>
+    </section>
+
+    <section id="screen-create" class="screen" hidden>
+      <form id="create-form" class="card">
+        <h2 id="create-title">Game settings</h2>
+        <div id="settings"></div>
+        <div id="preview" aria-hidden="true"></div>
+        <p id="create-error" class="error" role="alert" hidden></p>
+        <div class="actions">
+          <button id="create-back" class="btn btn-ghost" type="button">Back</button>
+          <button class="btn btn-primary" type="submit">Create</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="screen-lobby" class="screen card center" hidden>
+      <p id="lobby-game" class="muted"></p>
+      <p class="muted small">Share this code</p>
+      <p id="lobby-code" class="big-code"></p>
+      <button id="copy-link" class="btn btn-primary" type="button">Copy invite link</button>
+
+      <div class="players-box">
+        <h2 id="lobby-heading"></h2>
+        <ul id="lobby-players" class="lobby-players"></ul>
+      </div>
+
+      <p id="lobby-settings" class="muted small"></p>
+      <p id="lobby-wait" class="waiting"></p>
+      <div class="actions">
+        <button id="lobby-leave" class="btn btn-ghost" type="button">Leave</button>
+        <button id="start" class="btn btn-primary" type="button">Start game</button>
+      </div>
+    </section>
+
+    <section id="screen-game" class="screen" hidden>
+      <div id="game-root"></div>
+      <p id="banner" class="banner" role="status" hidden></p>
+      <div class="actions game-actions">
+        <button id="game-leave" class="btn btn-ghost" type="button">Leave</button>
+        <button id="rematch" class="btn btn-primary" type="button" hidden>Rematch</button>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="alert" hidden></div>
+
+  <!-- each game registers itself in window.Games before the shell starts -->
+  <script src="games/connect4/connect4.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

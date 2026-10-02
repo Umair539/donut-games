@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "Connect_Donut"
-version = "0.1.0"
-description = "Connect Four game with donut sprites and local multiplayer functionality."
+version = "0.2.0"
+description = "Donut-themed multiplayer games played in the browser, hosted with room codes."
 authors = [{name = "Umair", email = "umohammed235@outlook.com"}]
 readme = "README.md"
-requires-python = ">=3.6"
+requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
@@ -20,12 +20,15 @@ dynamic = ["dependencies"]
 Homepage = "https://github.com/Umair539/Connect_Donut"
 
 [project.scripts]
-run_server = "Server.Server:start"
-run_client = "Client.Client:start"
+run_web = "Server.core.app:run"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["*"]
+include = ["Server*"]
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

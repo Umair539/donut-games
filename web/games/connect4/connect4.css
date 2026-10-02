@@ -1,0 +1,159 @@
+/* Connect Donut. Colours come from the shared :root variables in style.css. */
+
+.c4 {
+  --board: #5b2a7a;
+  --board-edge: #3d1a55;
+  --hole: #140b1c;
+}
+
+.c4-players {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.c4-tag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 14px 4px 4px;
+  font-weight: 600;
+  transition: border-color 0.2s;
+}
+
+.c4-tag img {
+  width: 32px;
+  height: 32px;
+  image-rendering: pixelated;
+}
+
+.c4-tag.active {
+  border-color: var(--pink);
+}
+
+.c4-status {
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 16px 0 12px;
+  min-height: 2.1rem;
+}
+
+.c4-board {
+  --cell: min(
+    72px,
+    calc((100vw - 56px) / var(--cols)),
+    calc((100dvh - 280px) / var(--rows))
+  );
+  display: grid;
+  grid-template-columns: repeat(var(--cols), var(--cell));
+  justify-content: center;
+  width: fit-content;
+  margin: 0 auto;
+  padding: 8px;
+  background: var(--board);
+  border-radius: 14px;
+  border-bottom: 8px solid var(--board-edge);
+  box-shadow: 0 16px 40px rgb(0 0 0 / 0.4);
+}
+
+.c4-col {
+  display: flex;
+  flex-direction: column-reverse;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  cursor: default;
+  font: inherit;
+}
+
+.c4-col:focus-visible {
+  outline: 3px solid var(--pink);
+  outline-offset: 2px;
+}
+
+.c4-board.my-turn .c4-col:not(:disabled) {
+  cursor: pointer;
+}
+
+.c4-board.my-turn .c4-col:not(:disabled):hover,
+.c4-board.my-turn .c4-col:not(:disabled):focus-visible {
+  background: rgb(255 255 255 / 0.1);
+}
+
+.c4-cell {
+  position: relative;
+  width: var(--cell);
+  height: var(--cell);
+  display: grid;
+  place-items: center;
+}
+
+.c4-cell::before {
+  content: "";
+  position: absolute;
+  inset: 8%;
+  border-radius: 50%;
+  background: var(--hole);
+  box-shadow: inset 0 3px 6px rgb(0 0 0 / 0.6);
+}
+
+.c4-cell img {
+  position: relative;
+  z-index: 1; /* stay above the holes it falls past */
+  width: 92%;
+  height: 92%;
+  image-rendering: pixelated;
+}
+
+.c4-cell img.drop {
+  animation: c4-drop 0.35s cubic-bezier(0.5, 0, 0.9, 0.6);
+}
+
+@keyframes c4-drop {
+  from {
+    transform: translateY(calc(var(--fall) * -100%));
+  }
+}
+
+/* ghost donut where your piece would land */
+.c4-board.my-turn .c4-col:not(:disabled):hover .c4-cell.next::after,
+.c4-board.my-turn .c4-col:not(:disabled):focus-visible .c4-cell.next::after {
+  content: "";
+  position: relative;
+  width: 92%;
+  height: 92%;
+  background: var(--me) center / contain no-repeat;
+  image-rendering: pixelated;
+  opacity: 0.35;
+}
+
+/* the small board on the create screen */
+
+.c4-preview {
+  --cell: min(22px, calc((100vw - 100px) / var(--cols, 7)));
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 7), var(--cell));
+  gap: 3px;
+  justify-content: center;
+  padding: 10px;
+  margin: 8px auto 0;
+  width: fit-content;
+  background: #5b2a7a;
+  border-radius: 10px;
+}
+
+.c4-preview i {
+  width: var(--cell);
+  height: var(--cell);
+  border-radius: 50%;
+  background: #140b1c;
+}

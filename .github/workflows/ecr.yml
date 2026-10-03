@@ -44,6 +44,7 @@ jobs:
         with:
           context: .
           push: true
+          provenance: false # otherwise ECR shows 3 entries: an index, the image and an attestation
           tags: |
             ${{ vars.ECR_PUBLIC_URI }}:latest
           cache-from: type=gha

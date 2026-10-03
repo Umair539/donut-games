@@ -44,6 +44,9 @@ resource "aws_iam_role" "github_push" {
       Condition = {
         StringEquals = {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+        }
+        # ignore case: GitHub puts the owner's real capitalisation in the token (Umair539)
+        StringEqualsIgnoreCase = {
           "token.actions.githubusercontent.com:sub" = "repo:${var.github_repo}:ref:refs/heads/${var.github_branch}"
         }
       }

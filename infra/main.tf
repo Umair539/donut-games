@@ -23,20 +23,67 @@ variable "name" {
   default = "donut-games"
 }
 
-# Public ECR repositories can only be managed from us-east-1, whatever region the server is in.
-provider "aws" {
-  alias  = "us_east_1"
-  region = "us-east-1"
+resource "aws_ecr_repository" "app" {
+  name         = var.name
+  force_delete = true # lets terraform destroy remove it even when it holds images
 }
 
-# Public, so the instance can pull without credentials. The image contains no secrets.
-resource "aws_ecrpublic_repository" "app" {
-  provider        = aws.us_east_1
-  repository_name = var.name
+# The workflow only pushes :latest, so each push leaves the previous image untagged. Delete those.
+resource "aws_ecr_lifecycle_policy" "app" {
+  repository = aws_ecr_repository.app.name
+
+  policy = jsonencode({
+    rules = [{
+      rulePriority = 1
+      description  = "Expire untagged images after a day"
+      selection = {
+        tagStatus   = "untagged"
+        countType   = "sinceImagePushed"
+        countUnit   = "days"
+        countNumber = 1
+      }
+      action = { type = "expire" }
+    }]
+  })
 }
 
 locals {
-  image = "${aws_ecrpublic_repository.app.repository_uri}:latest"
+  image = "${aws_ecr_repository.app.repository_url}:latest"
+}
+
+# Lightsail instances can't have IAM roles, so the server pulls with the keys of this user, which
+# can only read this one repository. The keys are stored in Terraform state and on the instance.
+resource "aws_iam_user" "pull" {
+  name = "${var.name}-ecr-pull"
+}
+
+resource "aws_iam_user_policy" "pull" {
+  name = "pull-from-ecr"
+  user = aws_iam_user.pull.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "ecr:GetAuthorizationToken"
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ecr:BatchGetImage",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchCheckLayerAvailability",
+        ]
+        Resource = aws_ecr_repository.app.arn
+      },
+    ]
+  })
+}
+
+resource "aws_iam_access_key" "pull" {
+  user = aws_iam_user.pull.name
 }
 
 # IPv6-only is the cheapest bundle: $3.50/month, 512 MB, no public IPv4 address.
@@ -48,7 +95,11 @@ resource "aws_lightsail_instance" "server" {
   ip_address_type   = "ipv6"
 
   user_data = templatefile("${path.module}/user_data.sh.tftpl", {
-    image = local.image
+    image      = local.image
+    registry   = split("/", local.image)[0]
+    region     = var.region
+    access_key = aws_iam_access_key.pull.id
+    secret_key = aws_iam_access_key.pull.secret
   })
 }
 

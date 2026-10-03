@@ -18,7 +18,7 @@ terraform apply -target=aws_iam_role_policy.github_push
 If your AWS account has no GitHub OIDC provider yet (IAM > Identity providers), add
 `-var create_github_oidc_provider=true`. If it already has one, leave it as is.
 
-Terraform prints two outputs, `github_role_arn` and `github_ecr_public_uri`. You can show them again
+Terraform prints two outputs, `github_role_arn` and `github_ecr_repository_url`. You can show them again
 with `terraform output`.
 
 ## 2. Give GitHub those two values
@@ -28,7 +28,7 @@ In the repo on GitHub: **Settings > Secrets and variables > Actions**.
 | Kind | Name | Value |
 | --- | --- | --- |
 | Secret (Secrets tab) | `AWS_ROLE_ARN` | `github_role_arn` output |
-| Variable (Variables tab) | `ECR_PUBLIC_URI` | `github_ecr_public_uri` output |
+| Variable (Variables tab) | `ECR_REPOSITORY_URL` | `github_ecr_repository_url` output |
 
 ## 3. Run the workflow to push the first image
 
@@ -38,7 +38,7 @@ The workflow is `.github/workflows/ecr.yml`. It has to be committed and pushed t
 - go to the **Actions** tab, choose **Build and push to ECR**, and click **Run workflow**.
 
 It runs the tests, then builds the image and pushes it as `:latest`. Wait for it to go green. Check
-the image is there: AWS console > ECR > Public registries > donut-games (region us-east-1).
+the image is there: AWS console > ECR > Private repositories > donut-games (region eu-west-2).
 
 If it fails at "Configure AWS credentials", the role's trust doesn't match: the repo name and
 branch default to `Umair539/donut-games` and `main` (variables `github_repo`, `github_branch`).

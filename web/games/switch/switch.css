@@ -1,0 +1,321 @@
+/* Donut Switch. Colours come from the shared :root variables in style.css. */
+
+/* a card table wants the whole window, not the shell's narrow column */
+main:has(.sw) {
+  max-width: 1400px;
+}
+
+/* Sizes follow the window's width and height, so the table fills a phone, half a screen
+   or a whole monitor. Text sizes are in em, so they follow the font size set here. */
+.sw {
+  --card-w: clamp(60px, min(12vw, 16vh), 150px); /* cards in your hand */
+  --table-card: calc(var(--card-w) * 1.3); /* the pile and the discards */
+  --felt: #2a1a3d;
+  --red-suit: #ff6b81;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9em;
+  margin: 0 auto;
+  font-size: clamp(16px, min(2.4vw, 2.8vh), 28px);
+}
+
+.sw .btn {
+  font-size: 1em;
+  padding: 0.55em 1.4em;
+}
+
+.sw img {
+  display: block;
+  user-select: none;
+}
+
+/* players */
+
+.sw-players {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5em;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sw-player {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  background: var(--surface);
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  padding: 0.25em 0.8em;
+  font-weight: 600;
+  transition: border-color 0.2s;
+}
+
+.sw-player.active {
+  border-color: var(--pink);
+}
+
+.sw-player.gone {
+  opacity: 0.5;
+}
+
+.sw-player.out {
+  border-style: dashed;
+}
+
+.sw-place {
+  color: var(--warn);
+}
+
+.sw-name {
+  max-width: 10em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sw-count {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+}
+
+.sw-count img {
+  width: 0.8em;
+}
+
+/* table */
+
+.sw-table {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(16px, 5vw, 72px);
+  background: var(--felt);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1.6em 1em;
+}
+
+.sw-pile {
+  position: relative;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.sw-pile:disabled {
+  cursor: default;
+}
+
+.sw-pile:not(:disabled):hover img {
+  transform: translateY(-3px);
+}
+
+.sw-pile img,
+.sw-discard img {
+  width: var(--table-card);
+  border-radius: 6px;
+  box-shadow: 2px 3px 0 rgb(0 0 0 / 0.35);
+  transition: transform 0.15s;
+}
+
+.sw-pile span {
+  position: absolute;
+  right: -0.5em;
+  bottom: -0.5em;
+  min-width: 1.8em;
+  padding: 0 0.4em;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-size: 0.8em;
+  line-height: 1.7em;
+}
+
+.sw-discard {
+  position: relative;
+  width: calc(var(--table-card) * 1.5);
+  height: calc(var(--table-card) * 1.4);
+}
+
+/* older discards peek out to the left of the top card */
+.sw-discard img {
+  position: absolute;
+  top: 0;
+  right: 0;
+  transform: translateX(calc(var(--i) * var(--table-card) * 0.16)) rotate(calc(var(--i) * 4deg));
+}
+
+.sw-info {
+  font-size: 1.1em;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3em;
+  min-width: 5em;
+  font-weight: 600;
+}
+
+.sw-suit {
+  font-size: 1.6em;
+  line-height: 1;
+}
+
+.suit-H,
+.suit-D {
+  color: var(--red-suit);
+}
+
+.sw-pending:not(:empty) {
+  background: var(--pink);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.1em 0.6em;
+}
+
+/* status and log */
+
+.sw-status {
+  margin: 0;
+  text-align: center;
+  font-weight: 600;
+  font-size: 1.2em;
+}
+
+.sw-log {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  text-align: center;
+  font-size: 0.85em;
+  max-height: 4.4em;
+  overflow: hidden;
+}
+
+.sw-log li:first-child {
+  color: var(--text);
+}
+
+/* controls */
+
+.sw-suits {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+}
+
+.sw-suit-btn {
+  width: 2.2em;
+  height: 2.2em;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  background: var(--surface);
+  font-size: 1.3em;
+  cursor: pointer;
+}
+
+.sw-suit-btn:not(.suit-H, .suit-D) {
+  color: var(--text);
+}
+
+.sw-suit-btn.chosen {
+  border-color: var(--pink);
+  background: var(--surface-2);
+}
+
+.sw-controls {
+  display: flex;
+  justify-content: center;
+  gap: 0.5em;
+}
+
+/* hand */
+
+.sw-hand {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: clamp(6px, 0.8vw, 14px);
+  padding-top: calc(var(--card-w) * 0.2); /* room for picked cards to lift */
+}
+
+.sw-card {
+  position: relative;
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: transform 0.15s, opacity 0.15s;
+}
+
+.sw-card img {
+  width: var(--card-w);
+  border-radius: 6px;
+  box-shadow: 1px 2px 0 rgb(0 0 0 / 0.35);
+}
+
+.sw-card:disabled {
+  cursor: default;
+}
+
+.sw-card:not(:disabled, .dim):hover {
+  transform: translateY(-4px);
+}
+
+.sw-card.selected {
+  transform: translateY(calc(var(--card-w) * -0.18));
+  outline: 3px solid var(--pink);
+}
+
+.sw-card.dim {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.sw-order {
+  position: absolute;
+  top: -0.5em;
+  right: -0.5em;
+  width: 1.6em;
+  height: 1.6em;
+  border-radius: 50%;
+  background: var(--pink);
+  color: #fff;
+  font-size: 0.8em;
+  line-height: 1.6em;
+  text-align: center;
+}
+
+.busy .sw-card,
+.busy .sw-pile,
+.busy .btn {
+  pointer-events: none;
+}
+
+/* settings preview: the starting hand */
+
+.sw-preview {
+  display: flex;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.sw-preview img {
+  width: 40px;
+  margin-left: -16px;
+  border-radius: 3px;
+  box-shadow: 1px 1px 0 rgb(0 0 0 / 0.35);
+}
+
+.sw-preview img:first-child {
+  margin-left: 0;
+}

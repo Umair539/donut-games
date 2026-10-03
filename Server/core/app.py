@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import socket
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -185,13 +186,25 @@ async def websocket_endpoint(socket: WebSocket):
 app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
 
 
+def lan_address():
+    """This machine's address on the local network, or None if it can't be found."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            probe.connect(("10.255.255.255", 1))  # picks the outgoing interface, sends nothing
+            return probe.getsockname()[0]
+    except OSError:
+        return None
+
+
 def run():
-    uvicorn.run(
-        app,
-        host=os.environ.get("HOST", "0.0.0.0"),
-        port=int(os.environ.get("PORT", "8000")),
-        ws_max_size=16 * 1024,
-    )
+    host = os.environ.get("HOST", "0.0.0.0")
+    port = int(os.environ.get("PORT", "8000"))
+    # uvicorn prints the address it listens on, and 0.0.0.0 can't be opened in a browser
+    print(f"Open http://localhost:{port} to play")
+    lan = lan_address() if host == "0.0.0.0" else None
+    if lan:
+        print(f"Other devices on your network can use http://{lan}:{port}")
+    uvicorn.run(app, host=host, port=port, ws_max_size=16 * 1024)
 
 
 if __name__ == "__main__":

@@ -264,11 +264,25 @@ function openCreate(info) {
   const form = $("settings");
   form.replaceChildren();
   for (const setting of info.settings) {
-    if (setting.type !== "int") continue; // the only kind of setting so far
     values[setting.key] = setting.default;
-
     const wrap = document.createElement("div");
     wrap.className = "setting";
+
+    if (setting.type === "bool") {
+      const label = document.createElement("label");
+      label.className = "setting-toggle";
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.checked = setting.default;
+      input.addEventListener("change", refreshSettings);
+      label.append(input, " " + setting.label);
+      controls[setting.key] = { input };
+      wrap.append(label);
+      form.append(wrap);
+      continue;
+    }
+    if (setting.type !== "int") continue;
+
     const label = document.createElement("label");
     label.htmlFor = `set-${setting.key}`;
     label.append(setting.label + " ");
@@ -294,6 +308,10 @@ function refreshSettings() {
   for (const setting of creating.settings) {
     const control = controls[setting.key];
     if (!control) continue;
+    if (setting.type === "bool") {
+      values[setting.key] = control.input.checked;
+      continue;
+    }
     if (setting.max_of) {
       // the maximum follows other settings, e.g. you can't need 9 in a row on a 6 x 7 board
       control.input.max = Math.max(...setting.max_of.map((key) => values[key]));
@@ -318,7 +336,8 @@ $("create-form").addEventListener("submit", (e) => {
 
 function describeSettings(info, settings) {
   if (!info) return "";
-  return info.settings.map((s) => `${s.label}: ${settings[s.key]}`).join(" · ");
+  const shown = (value) => (value === true ? "Yes" : value === false ? "No" : value);
+  return info.settings.map((s) => `${s.label}: ${shown(settings[s.key])}`).join(" · ");
 }
 
 function renderLobby() {

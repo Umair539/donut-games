@@ -20,10 +20,24 @@ def test_healthz(client):
 
 def test_games_listing(client):
     games = client.get("/api/games").json()
-    assert [g["name"] for g in games] == ["connect4"]
+    assert [g["name"] for g in games] == ["connect4", "switch"]
     game = games[0]
     assert (game["min_players"], game["max_players"]) == (2, 2)
     assert [s["key"] for s in game["settings"]] == ["cols", "rows", "amount"]
+    switch = games[1]
+    assert (switch["min_players"], switch["max_players"]) == (2, 10)
+
+
+def test_switch_over_websockets(client):
+    with client.websocket_connect("/ws") as host, client.websocket_connect("/ws") as guest:
+        code = create(host, "switch", hand_size=3, force_play=True)["code"]
+        join(guest, code)
+        recv(host, "state")
+        mine = start(host)["data"]
+        theirs = recv(guest, "state")["data"]
+        assert len(mine["hand"]) == len(theirs["hand"]) == 3
+        assert mine["counts"] == theirs["counts"] == [{"id": 1, "cards": 3}, {"id": 2, "cards": 3}]
+        assert mine["force"] is True
 
 
 def test_create_room(client):

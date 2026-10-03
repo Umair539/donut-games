@@ -18,7 +18,8 @@ class BaseGame:
 
     # What the host can choose. Each entry is
     # {"key", "label", "type": "int", "min", "max", "default"}, and "max_of": [keys] makes
-    # the maximum follow the largest of those other settings.
+    # the maximum follow the largest of those other settings. {"key", "label", "type": "bool",
+    # "default"} is an on/off switch.
     settings_schema = []
 
     @classmethod

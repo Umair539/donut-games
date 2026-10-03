@@ -6,6 +6,19 @@ variable "github_repo" {
   default     = "Umair539/donut-games"
 }
 
+# GitHub puts the numeric owner and repo IDs in the token for this repo, so the trust has to
+# include them. They come from `gh api repos/<owner>/<repo>` (owner.id and id), or from the
+# CloudTrail AssumeRoleWithWebIdentity error event after a failed login.
+variable "github_owner_id" {
+  type    = number
+  default = 221887404
+}
+
+variable "github_repo_id" {
+  type    = number
+  default = 1086501402
+}
+
 variable "github_branch" {
   type    = string
   default = "main"
@@ -44,10 +57,7 @@ resource "aws_iam_role" "github_push" {
       Condition = {
         StringEquals = {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-        }
-        # ignore case: GitHub puts the owner's real capitalisation in the token (Umair539)
-        StringEqualsIgnoreCase = {
-          "token.actions.githubusercontent.com:sub" = "repo:${var.github_repo}:ref:refs/heads/${var.github_branch}"
+          "token.actions.githubusercontent.com:sub" = "repo:${split("/", var.github_repo)[0]}@${var.github_owner_id}/${split("/", var.github_repo)[1]}@${var.github_repo_id}:ref:refs/heads/${var.github_branch}"
         }
       }
     }]

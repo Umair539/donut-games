@@ -52,7 +52,7 @@ resource "aws_iam_role" "github_push" {
 }
 
 resource "aws_iam_role_policy" "github_push" {
-  name = "push-to-ecr"
+  name = "push-to-ecr-public"
   role = aws_iam_role.github_push.id
 
   policy = jsonencode({
@@ -60,19 +60,19 @@ resource "aws_iam_role_policy" "github_push" {
     Statement = [
       {
         Effect   = "Allow"
-        Action   = "ecr:GetAuthorizationToken"
+        Action   = ["ecr-public:GetAuthorizationToken", "sts:GetServiceBearerToken"]
         Resource = "*"
       },
       {
         Effect = "Allow"
         Action = [
-          "ecr:BatchCheckLayerAvailability",
-          "ecr:InitiateLayerUpload",
-          "ecr:UploadLayerPart",
-          "ecr:CompleteLayerUpload",
-          "ecr:PutImage",
+          "ecr-public:BatchCheckLayerAvailability",
+          "ecr-public:InitiateLayerUpload",
+          "ecr-public:UploadLayerPart",
+          "ecr-public:CompleteLayerUpload",
+          "ecr-public:PutImage",
         ]
-        Resource = aws_ecr_repository.app.arn
+        Resource = aws_ecrpublic_repository.app.arn
       },
     ]
   })
@@ -83,7 +83,7 @@ output "github_role_arn" {
   value       = aws_iam_role.github_push.arn
 }
 
-output "github_ecr_repository_url" {
-  description = "Save as the ECR_REPOSITORY_URL variable in the GitHub repo"
-  value       = aws_ecr_repository.app.repository_url
+output "github_ecr_public_uri" {
+  description = "Save as the ECR_PUBLIC_URI variable in the GitHub repo"
+  value       = aws_ecrpublic_repository.app.repository_uri
 }

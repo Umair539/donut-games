@@ -1,27 +1,18 @@
 #!/bin/bash
-# Runs once on first boot: installs Docker and runs the image from private ECR on port 80.
+# Runs once on first boot: installs Docker and runs the image from public ECR on port 80.
 # HTTPS is not handled here, Cloudflare's proxy provides it.
 set -euxo pipefail
 
 apt-get update
-apt-get install -y ca-certificates curl cron awscli
+apt-get install -y ca-certificates curl cron
 curl -fsSL https://get.docker.com | sh
 
 mkdir -p /opt/donut-games
-cat > /opt/donut-games/aws-credentials <<'CREDS'
-[default]
-aws_access_key_id = ${access_key}
-aws_secret_access_key = ${secret_key}
-CREDS
-chmod 600 /opt/donut-games/aws-credentials
-
 cat > /opt/donut-games/update.sh <<'UPDATE'
 #!/bin/bash
 # Pulls the latest image and restarts the server only if it changed. Cron runs this every 5 minutes.
 set -euo pipefail
 image='${image}'
-export AWS_SHARED_CREDENTIALS_FILE=/opt/donut-games/aws-credentials
-aws ecr get-login-password --region ${region} | docker login --username AWS --password-stdin ${registry}
 docker pull -q "$image" > /dev/null
 latest=$(docker image inspect -f '{{.Id}}' "$image")
 running=$(docker inspect -f '{{.Image}}' donut-games 2>/dev/null || true)

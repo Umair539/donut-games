@@ -37,6 +37,9 @@ resource "aws_ecrpublic_repository" "app" {
 
 locals {
   image = "${aws_ecrpublic_repository.app.repository_uri}:latest"
+  # public.ecr.aws has no IPv6 address, so the IPv6-only server pulls through the dual-stack
+  # hostname instead. It serves the same repository.
+  server_image = replace(local.image, "public.ecr.aws", "ecr-public.aws.com")
 }
 
 # IPv6-only is the cheapest bundle: $3.50/month, 512 MB, no public IPv4 address.
@@ -48,7 +51,7 @@ resource "aws_lightsail_instance" "server" {
   ip_address_type   = "ipv6"
 
   user_data = templatefile("${path.module}/user_data.sh.tftpl", {
-    image = local.image
+    image = local.server_image
   })
 }
 

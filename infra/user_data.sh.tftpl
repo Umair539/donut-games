@@ -1,7 +1,7 @@
 #!/bin/bash
 # Runs once on first boot: installs Docker and runs the image from public ECR on port 80.
 # HTTPS is not handled here, Cloudflare's proxy provides it.
-set -euxo pipefail
+set -eux # Lightsail may run this with sh, which has no pipefail
 
 apt-get update
 apt-get install -y ca-certificates curl cron

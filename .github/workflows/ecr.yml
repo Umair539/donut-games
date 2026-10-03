@@ -1,0 +1,51 @@
+name: Build and push to ECR
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write # lets the job get AWS credentials through OIDC, no stored keys
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: flake8 Server tests
+      - run: pytest -q
+
+  push:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1 # public ECR is only available here
+
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registry-type: public
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ vars.ECR_PUBLIC_URI }}:${{ github.sha }}
+            ${{ vars.ECR_PUBLIC_URI }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

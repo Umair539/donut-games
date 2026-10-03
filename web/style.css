@@ -193,6 +193,34 @@ p {
   font-size: 0.9rem;
 }
 
+.name-field {
+  margin-bottom: 20px;
+}
+
+.name-field label {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.name-input {
+  width: 100%;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.name-input::placeholder {
+  color: var(--line);
+}
+
+.name-input:focus {
+  outline: none;
+  border-color: var(--pink);
+}
+
 .divider {
   display: flex;
   align-items: center;
@@ -326,12 +354,20 @@ input[type="range"] {
 /* lobby */
 
 .big-code {
-  font-size: clamp(3rem, 16vw, 4.5rem);
+  font-size: clamp(2.2rem, 11vw, 3.6rem);
   font-weight: 700;
-  letter-spacing: 12px;
+  letter-spacing: 0.15em;
   margin: 4px 0 20px;
-  padding-left: 12px;
+  padding-left: 0.15em; /* balances the trailing letter-spacing */
   color: var(--pink);
+  user-select: all; /* one click selects the whole code */
+}
+
+.copy-row {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .players-box {

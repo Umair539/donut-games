@@ -6,7 +6,7 @@
  *   icon                 sprite shown on the home screen
  *   preview(el, values)  optional, draws a preview of the host's settings
  *   mount(root, api)     build the game's DOM once; api.send(action) sends a move
- *   render(root, ctx)    show the current state. ctx = { you, players, data, over }
+ *   render(root, ctx)    show the current state. ctx = { you, players, data, over }; each player is { id, name, status }
  * The shell owns everything around the game: lobby, banner, rematch and leave buttons.
  */
 (() => {
@@ -36,7 +36,7 @@
           <div class="c4-tag" data-tag="me"><img alt=""><span>You</span></div>
           <span class="muted small" data-round></span>
           <div class="c4-tag" data-tag="opp">
-            <img alt=""><span>Opponent</span><i class="dot" title="connected"></i>
+            <img alt=""><span data-opp-name>Opponent</span><i class="dot" title="connected"></i>
           </div>
         </div>
         <p class="c4-status" data-status aria-live="polite"></p>
@@ -48,7 +48,8 @@
     const q = (selector) => root.querySelector(selector);
     const me = you;
     const opp = me === 1 ? 2 : 1;
-    const oppStatus = (players.find((p) => p.id === opp) || {}).status || "left";
+    const other = players.find((p) => p.id === opp) || {};
+    const oppStatus = other.status || "left";
 
     const playing = g.status === "playing";
     const live = playing && oppStatus !== "left";
@@ -62,6 +63,7 @@
     const dot = q("[data-tag=opp] .dot");
     dot.className = `dot ${oppStatus}`;
     dot.title = oppStatus;
+    q("[data-opp-name]").textContent = other.name || "Opponent";
     q("[data-round]").textContent = `Round ${g.round}`;
 
     let status;

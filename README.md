@@ -1,5 +1,5 @@
 # Donut Games
-Donut-themed multiplayer games played in the browser. The host picks a game, chooses its settings and gets a 4-letter code (or invite link) to share. Everyone waits in a lobby, and the host starts the game when they are ready. The Python server is the source of truth for every move and talks to the browsers over WebSockets.
+Donut-themed multiplayer games played in the browser. The host picks a game, chooses its settings and gets a 6-character code (or invite link) to share. Everyone waits in a lobby, and the host starts the game when they are ready. The Python server is the source of truth for every move and talks to the browsers over WebSockets.
 
 The server and the page around each game are shared, so a new game only has to provide its rules and its board. Connect Donut (Connect Four) is the first game.
 
@@ -52,12 +52,38 @@ flake8 is set to a 100 character line limit in **`.flake8`**.
 
 ---
 
+## Deploying on AWS Lightsail
+
+The **`Dockerfile`** runs the server and web pages as one container on a Lightsail container service (about $7/month, `nano`). Lightsail gives it an `https://...cs.amazonaws.com` address, and WebSockets work over it, so no domain is needed. **`infra/main.tf`** is the Terraform.
+
+Needs Terraform, Docker, the AWS CLI configured with credentials, and the [Lightsail plugin](https://docs.aws.amazon.com/lightsail/latest/userguide/amazon-lightsail-install-software.html) (`lightsailctl`) for pushing images.
+
+```bash
+cd infra
+terraform init
+terraform apply                      # 1. creates the empty service
+cd ..
+docker build -t donut-games .
+aws lightsail push-container-image --region us-east-1 --service-name donut-games --label app --image donut-games:latest
+                                     # 2. prints an image name like :donut-games.app.1
+cd infra
+terraform apply -var image=:donut-games.app.1    # 3. runs it; the URL is printed
+```
+
+For new code: rebuild, push again, and apply with the new image name.
+
+Run **one instance only**. Rooms live in the memory of that one process, and a restart or redeploy ends games in progress.
+
+---
+
 ## How a game session works
 
 1. The host picks a game and its settings, and gets a room code. The room starts in the **lobby**.
 2. Others join with the code until the game's maximum is reached. The host can start once the minimum number of players is in.
 3. After the host starts, the room is **playing**. The server checks every action and sends each player their own view of the game.
 4. When the game is over, everyone has to agree for a rematch.
+
+Names are optional. They are tidied up (no control characters, single spaces, at most 16 characters) and an empty name becomes "Player". If a name is already taken in the room, a number is added, so a second "Sam" becomes "Sam 2". Names only live as long as the room does, and nothing is stored afterwards.
 
 If a player disconnects they have 60 seconds to come back before their seat is lost. Rooms are removed when everyone has left, or after 30 minutes without activity. Rooms are kept in memory, so restarting the server ends any games in progress.
 
@@ -66,9 +92,9 @@ All messages are JSON over a single WebSocket at `/ws`.
 
 | Client sends | What it does |
 |---|---|
-| `{"type": "create", "game": "connect4", "settings": {"rows": 6}}` | Makes a room and seats you as the host. Missing settings use their defaults |
-| `{"type": "join", "code": "K7QX"}` | Takes a free seat in a lobby |
-| `{"type": "rejoin", "code": "K7QX", "token": "..."}` | Gets your seat back after a refresh or dropped connection |
+| `{"type": "create", "game": "connect4", "name": "Sam", "settings": {"rows": 6}}` | Makes a room and seats you as the host. Missing settings use their defaults |
+| `{"type": "join", "code": "K7QX4M", "name": "Sam"}` | Takes a free seat in a lobby |
+| `{"type": "rejoin", "code": "K7QX4M", "token": "..."}` | Gets your seat back after a refresh or dropped connection |
 | `{"type": "start"}` | Host only. Starts the game |
 | `{"type": "action", "action": {"col": 3}}` | Plays a move. What an action looks like is up to the game |
 | `{"type": "rematch"}` | Votes for a rematch |
@@ -103,5 +129,4 @@ The lobby, codes, reconnecting, the settings form and the game picker all come f
 
 ## To-do
 
-* **Deployment**: Dockerfile and deploying to Render.
 * **Real-time games**: games such as air hockey will need the server to step the game on a timer and push state many times a second. `BaseGame` has no hook for that yet.

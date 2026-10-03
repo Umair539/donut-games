@@ -32,12 +32,17 @@
       </header>
 
       <div class="card">
+        <div class="name-field">
+          <label for="player-name">Your name <span class="muted">(optional)</span></label>
+          <input id="player-name" class="name-input" placeholder="Player" maxlength="16"
+                 autocomplete="nickname" spellcheck="false">
+        </div>
         <h2>Host a game</h2>
         <div id="game-list" class="game-list"></div>
         <div class="divider"><span>or join one</span></div>
         <form id="join-form" class="join-row" autocomplete="off">
           <label class="sr-only" for="join-code">Game code</label>
-          <input id="join-code" class="code-input" placeholder="CODE" maxlength="4"
+          <input id="join-code" class="code-input" placeholder="CODE" maxlength="6"
                  inputmode="text" autocapitalize="characters" spellcheck="false" required>
           <button class="btn" type="submit">Join</button>
         </form>
@@ -62,7 +67,10 @@
       <p id="lobby-game" class="muted"></p>
       <p class="muted small">Share this code</p>
       <p id="lobby-code" class="big-code"></p>
-      <button id="copy-link" class="btn btn-primary" type="button">Copy invite link</button>
+      <div class="copy-row">
+        <button id="copy-code" class="btn" type="button">Copy code</button>
+        <button id="copy-link" class="btn btn-primary" type="button">Copy invite link</button>
+      </div>
 
       <div class="players-box">
         <h2 id="lobby-heading"></h2>

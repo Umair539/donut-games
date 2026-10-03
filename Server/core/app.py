@@ -85,11 +85,11 @@ class Connection:
 
         if kind == "create":
             room = rooms.create(now, msg.get("game"), msg.get("settings", {}))
-            await self._seated(room, room.join(self.socket, now))
+            await self._seated(room, room.join(self.socket, now, msg.get("name")))
 
         elif kind == "join":
             room = rooms.get(msg.get("code"))
-            await self._seated(room, room.join(self.socket, now))
+            await self._seated(room, room.join(self.socket, now, msg.get("name")))
 
         elif kind == "rejoin":
             room = rooms.get(msg.get("code"))
@@ -127,7 +127,13 @@ class Connection:
         self.room, self.seat = room, seat
         await send(
             self.socket,
-            {"type": "joined", "code": room.code, "player": seat.player, "token": seat.token},
+            {
+                "type": "joined",
+                "code": room.code,
+                "player": seat.player,
+                "name": seat.name,
+                "token": seat.token,
+            },
         )
         await broadcast(room)
 

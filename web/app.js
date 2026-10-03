@@ -5,6 +5,7 @@
  * (see games/connect4/connect4.js for the interface). */
 
 const SESSION_KEY = "donut-games-session";
+const NAME_KEY = "donut-games-name"; // remembered in this browser so you don't retype it
 const MAX_RETRY_DELAY = 5000;
 const Games = window.Games || {};
 
@@ -39,6 +40,26 @@ function saveSession(value) {
   } catch {
     // storage blocked: the game still works, it just can't survive a refresh
   }
+}
+
+// ---------- player name ----------
+
+function savedName() {
+  try {
+    return localStorage.getItem(NAME_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+function playerName() {
+  const name = $("player-name").value.trim();
+  try {
+    localStorage.setItem(NAME_KEY, name);
+  } catch {
+    // storage blocked: the name just isn't remembered
+  }
+  return name;
 }
 
 // ---------- connection ----------
@@ -210,13 +231,21 @@ $("join-code").addEventListener("input", (e) => {
   e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
 });
 
+$("player-name").addEventListener("keydown", (e) => {
+  // Enter in the name box joins, when someone sent you a code
+  if (e.key === "Enter" && $("join-code").value) {
+    e.preventDefault();
+    $("join-form").requestSubmit();
+  }
+});
+
 $("join-form").addEventListener("submit", (e) => {
   e.preventDefault();
   const code = $("join-code").value.trim();
   if (!code) return;
   showError("home-error", "");
   pending = "join";
-  send({ type: "join", code });
+  send({ type: "join", code, name: playerName() });
 });
 
 // ---------- create: the settings form is built from the game's schema ----------
@@ -282,7 +311,7 @@ $("create-form").addEventListener("submit", (e) => {
   e.preventDefault();
   showError("create-error", "");
   pending = "create";
-  send({ type: "create", game: creating.name, settings: { ...values } });
+  send({ type: "create", game: creating.name, name: playerName(), settings: { ...values } });
 });
 
 // ---------- lobby ----------
@@ -309,7 +338,7 @@ function renderLobby() {
       const dot = document.createElement("i");
       dot.className = `dot ${p.status}`;
       dot.title = p.status;
-      item.append(dot, `Player ${p.id}`);
+      item.append(dot, p.name);
       if (p.id === state.you) {
         const you = document.createElement("span");
         you.className = "you";
@@ -344,17 +373,42 @@ function renderLobby() {
   $("lobby-leave").textContent = isHost ? "Cancel game" : "Leave";
 }
 
-$("copy-link").addEventListener("click", async () => {
-  const link = `${location.origin}/?code=${state.code}`;
-  const button = $("copy-link");
+async function copyText(text) {
+  // navigator.clipboard only exists on https or localhost, so fall back for plain http
   try {
-    await navigator.clipboard.writeText(link);
-    button.textContent = "Copied!";
+    await navigator.clipboard.writeText(text);
+    return true;
   } catch {
-    button.textContent = link; // clipboard blocked: show it so it can be copied by hand
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.cssText = "position:fixed;top:0;left:0;opacity:0";
+    document.body.append(area);
+    area.select();
+    try {
+      return document.execCommand("copy");
+    } catch {
+      return false;
+    } finally {
+      area.remove();
+    }
   }
-  setTimeout(() => (button.textContent = "Copy invite link"), 2000);
-});
+}
+
+function copyButton(id, label, getText) {
+  const button = $(id);
+  button.addEventListener("click", async () => {
+    if (await copyText(getText())) {
+      button.textContent = "Copied!";
+      setTimeout(() => (button.textContent = label), 2000);
+    } else {
+      toast("Couldn't copy. Select the code and copy it by hand.");
+    }
+  });
+}
+
+copyButton("copy-code", "Copy code", () => state.code);
+copyButton("copy-link", "Copy invite link", () => `${location.origin}/?code=${state.code}`);
 
 $("start").addEventListener("click", () => send({ type: "start" }));
 
@@ -396,27 +450,23 @@ function render() {
 // the banner, rematch and leave buttons around whichever game is showing
 function renderFrame() {
   const others = state.players.filter((p) => p.id !== state.you);
-  const left = others.filter((p) => p.status === "left").length;
-  const away = others.filter((p) => p.status === "reconnecting").length;
+  const left = others.filter((p) => p.status === "left");
+  const away = others.filter((p) => p.status === "reconnecting");
+  const names = (list) => list.map((p) => p.name).join(", ");
 
-  if (left) {
-    setBanner(others.length === 1 ? "Your opponent left the game."
-      : `${left} player${left > 1 ? "s" : ""} left the game.`);
-  } else if (away) {
-    setBanner("A player disconnected, waiting for them…");
-  } else {
-    setBanner("");
-  }
+  if (left.length) setBanner(`${names(left)} left the game.`);
+  else if (away.length) setBanner(`${names(away)} disconnected, waiting for them…`);
+  else setBanner("");
 
   const rematch = $("rematch");
   const iAsked = state.rematch.includes(state.you);
   const theyAsked = state.rematch.some((p) => p !== state.you);
-  rematch.hidden = !state.over || left > 0;
+  rematch.hidden = !state.over || left.length > 0;
   rematch.disabled = iAsked;
   rematch.textContent = iAsked
     ? "Waiting for others…"
     : theyAsked ? "Others want a rematch!" : "Rematch";
-  $("game-leave").textContent = left && others.length === 1 ? "Back to home" : "Leave";
+  $("game-leave").textContent = left.length && others.length === 1 ? "Back to home" : "Leave";
 }
 
 $("rematch").addEventListener("click", () => send({ type: "rematch" }));
@@ -441,6 +491,7 @@ async function init() {
     gamesInfo = [];
   }
   buildGameList();
+  $("player-name").value = savedName();
 
   const inviteCode = new URLSearchParams(location.search).get("code");
   if (inviteCode) history.replaceState(null, "", location.pathname);
@@ -451,8 +502,10 @@ async function init() {
   } else {
     showHome();
     if (inviteCode) {
-      $("join-code").value = inviteCode.toUpperCase().slice(0, 4);
-      $("join-form").requestSubmit();
+      $("join-code").value = inviteCode.toUpperCase().slice(0, 6);
+      // with a remembered name join straight away, otherwise let them pick one first
+      if ($("player-name").value) $("join-form").requestSubmit();
+      else $("player-name").focus();
     }
   }
 }

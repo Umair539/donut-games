@@ -3,7 +3,9 @@ import secrets
 from Server.games import GAMES
 
 CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O or 1/I
-CODE_LENGTH = 4
+CODE_LENGTH = 6
+MAX_NAME_LENGTH = 16
+DEFAULT_NAME = "Player"
 MAX_ROOMS = 1000
 RECONNECT_GRACE = 60  # seconds a player has to come back before their seat is lost
 IDLE_TIMEOUT = 30 * 60  # seconds without activity before a room is closed
@@ -22,9 +24,20 @@ class RoomError(Exception):
     """Raised when a room action is not allowed."""
 
 
+def clean_name(raw):
+    """Tidy a name typed by a player: no control characters, single spaces, limited length."""
+    if raw is None:
+        raw = ""
+    if not isinstance(raw, str):
+        raise RoomError("Invalid name")
+    name = " ".join("".join(ch for ch in raw if ch.isprintable() or ch.isspace()).split())
+    return name[:MAX_NAME_LENGTH].rstrip() or DEFAULT_NAME
+
+
 class Seat:
-    def __init__(self, player, socket):
+    def __init__(self, player, name, socket):
         self.player = player  # 1..N, may be renumbered when the game starts
+        self.name = name
         self.token = secrets.token_urlsafe(16)
         self.socket = socket
         self.away_since = None
@@ -57,17 +70,28 @@ class Room:
 
     # ---- seats
 
-    def join(self, socket, now):
+    def join(self, socket, now, name=None):
+        name = clean_name(name)
         if self.game is not None:
             raise RoomError("Game already started")
         for player in range(1, self.game_cls.max_players + 1):
             if player not in self.seats:
-                seat = self.seats[player] = Seat(player, socket)
+                seat = self.seats[player] = Seat(player, self._unique_name(name), socket)
                 if self.host is None:
                     self.host = seat
                 self.last_active = now
                 return seat
         raise RoomError("Room is full")
+
+    def _unique_name(self, name):
+        """If someone here already has this name, add 2, 3, 4... until it is free."""
+        taken = {seat.name.casefold() for seat in self.seats.values()}
+        candidate, number = name, 1
+        while candidate.casefold() in taken:
+            number += 1
+            suffix = f" {number}"
+            candidate = name[: MAX_NAME_LENGTH - len(suffix)].rstrip() + suffix
+        return candidate
 
     def rejoin(self, token, socket, now):
         """Put a socket back in its seat. Returns (seat, old socket or None)."""
@@ -173,7 +197,10 @@ class Room:
             "settings": self.settings,
             "min_players": self.game_cls.min_players,
             "max_players": self.game_cls.max_players,
-            "players": [{"id": p, "status": s.status} for p, s in sorted(self.seats.items())],
+            "players": [
+                {"id": p, "name": s.name, "status": s.status}
+                for p, s in sorted(self.seats.items())
+            ],
             "over": game.over if game else False,
             "rematch": sorted(self.rematch),
             "data": game.view(seat.player) if game else None,

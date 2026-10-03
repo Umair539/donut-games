@@ -32,12 +32,12 @@ def test_create_room(client):
                       "settings": {"rows": 8, "cols": 9, "amount": 5}})
         joined = recv(ws, "joined")
         assert joined["player"] == 1
-        assert len(joined["code"]) == 4
+        assert len(joined["code"]) == 6
         state = recv(ws, "state")
         assert state["code"] == joined["code"]
         assert state["phase"] == LOBBY
         assert state["you"] == state["host"] == 1
-        assert state["players"] == [{"id": 1, "status": CONNECTED}]
+        assert state["players"] == [{"id": 1, "name": "Player", "status": CONNECTED}]
         assert state["settings"] == {"rows": 8, "cols": 9, "amount": 5}
         assert state["data"] is None
 
@@ -262,7 +262,7 @@ def test_leaving_the_lobby_frees_the_seat(client):
         code = lobby(p1, p2)
         p2.send_json({"type": "leave"})
         state = recv(p1, "state")
-        assert state["players"] == [{"id": 1, "status": CONNECTED}]
+        assert state["players"] == [{"id": 1, "name": "Player", "status": CONNECTED}]
         assert join(p3, code)["player"] == 2
 
 
@@ -289,3 +289,103 @@ def test_leaving_mid_game(client):
         # a left seat cannot be taken back, even with its real token
         p2.send_json({"type": "rejoin", "code": code, "token": token})
         assert recv(p2, "error")["message"] == "Could not rejoin that game"
+
+
+# names
+
+
+def names(state):
+    return [p["name"] for p in state["players"]]
+
+
+def test_names_shown_to_everyone(client):
+    with client.websocket_connect("/ws") as p1, client.websocket_connect("/ws") as p2:
+        p1.send_json({"type": "create", "game": "connect4", "name": "Sam"})
+        assert recv(p1, "joined")["name"] == "Sam"
+        code = recv(p1, "state")["code"]
+        p2.send_json({"type": "join", "code": code, "name": "Alex"})
+        assert recv(p2, "joined")["name"] == "Alex"
+        assert names(recv(p2, "state")) == ["Sam", "Alex"]
+        assert names(recv(p1, "state")) == ["Sam", "Alex"]
+
+
+def test_unnamed_players_get_default_names(client):
+    with client.websocket_connect("/ws") as p1, client.websocket_connect("/ws") as p2:
+        code = create(p1)["code"]
+        assert join(p2, code)["name"] == "Player 2"
+        assert names(recv(p1, "state")) == ["Player", "Player 2"]
+
+
+def test_taken_name_gets_a_number(client):
+    with client.websocket_connect("/ws") as p1, client.websocket_connect("/ws") as p2:
+        p1.send_json({"type": "create", "game": "connect4", "name": "Sam"})
+        code = recv(p1, "state")["code"]
+        p2.send_json({"type": "join", "code": code, "name": "sam"})  # not case sensitive
+        assert recv(p2, "joined")["name"] == "sam 2"
+
+
+def test_name_kept_when_rejoining(client):
+    with client.websocket_connect("/ws") as p1:
+        p1.send_json({"type": "create", "game": "connect4", "name": "Sam"})
+        code = recv(p1, "state")["code"]
+        with client.websocket_connect("/ws") as p2:
+            p2.send_json({"type": "join", "code": code, "name": "Sam"})
+            token = recv(p2, "joined")["token"]
+        with client.websocket_connect("/ws") as p2:
+            p2.send_json({"type": "rejoin", "code": code, "token": token})
+            assert recv(p2, "joined")["name"] == "Sam 2"
+            assert names(recv(p2, "state")) == ["Sam", "Sam 2"]
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        ("  Sam   Smith  ", "Sam Smith"),
+        ("Sa\x00m\x07", "Sam"),
+        ("a" * 40, "a" * 16),
+        ("", "Player"),
+        ("   ", "Player"),
+        ("\n\t", "Player"),
+        ("<b>Sam</b>", "<b>Sam</b>"),  # shown as plain text by the page, so left alone
+        ("Donut \U0001f369", "Donut \U0001f369"),
+    ],
+)
+def test_names_are_tidied(client, raw, expected):
+    with client.websocket_connect("/ws") as ws:
+        ws.send_json({"type": "create", "game": "connect4", "name": raw})
+        assert recv(ws, "joined")["name"] == expected
+
+
+@pytest.mark.parametrize("raw", [5, ["Sam"], {"a": 1}, True])
+def test_name_must_be_text(client, raw):
+    with client.websocket_connect("/ws") as ws:
+        ws.send_json({"type": "create", "game": "connect4", "name": raw})
+        assert recv(ws, "error")["message"] == "Invalid name"
+
+
+def test_number_suffix_keeps_name_within_length_limit(client):
+    long_name = "a" * 16
+    with client.websocket_connect("/ws") as p1, client.websocket_connect("/ws") as p2:
+        p1.send_json({"type": "create", "game": "connect4", "name": long_name})
+        code = recv(p1, "state")["code"]
+        p2.send_json({"type": "join", "code": code, "name": long_name})
+        name = recv(p2, "joined")["name"]
+        assert len(name) == 16
+        assert name.endswith(" 2")
+
+
+def test_leaving_the_lobby_frees_the_name(client):
+    with (
+        client.websocket_connect("/ws") as p1,
+        client.websocket_connect("/ws") as p2,
+        client.websocket_connect("/ws") as p3,
+    ):
+        p1.send_json({"type": "create", "game": "connect4", "name": "Sam"})
+        code = recv(p1, "state")["code"]
+        p2.send_json({"type": "join", "code": code, "name": "Alex"})
+        recv(p2, "state")
+        recv(p1, "state")
+        p2.send_json({"type": "leave"})
+        recv(p1, "state")
+        p3.send_json({"type": "join", "code": code, "name": "Alex"})
+        assert recv(p3, "joined")["name"] == "Alex"

@@ -45,7 +45,6 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ vars.ECR_PUBLIC_URI }}:${{ github.sha }}
             ${{ vars.ECR_PUBLIC_URI }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max

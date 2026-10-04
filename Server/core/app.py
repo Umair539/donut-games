@@ -16,7 +16,7 @@ from Server.games import GAMES
 
 WEB_DIR = Path(__file__).resolve().parent.parent.parent / "web"
 MAX_MESSAGE_SIZE = 1024  # characters, plenty for any valid message
-SWEEP_INTERVAL = 5  # seconds between checks for expired seats and dead rooms
+SWEEP_INTERVAL = 1  # seconds between checks for turn timers, expired seats and dead rooms
 
 rooms = RoomManager()
 
@@ -107,6 +107,11 @@ class Connection:
             self.room.action(self.seat, msg.get("action"), now)
             await broadcast(self.room)
 
+        elif kind == "chat":
+            line = self.room.chat(self.seat, msg.get("text"), now)
+            for seat in self.room.connected_seats():
+                await send(seat.socket, line)
+
         elif kind == "rematch":
             self.room.request_rematch(self.seat, now)
             await broadcast(self.room)
@@ -182,8 +187,19 @@ async def websocket_endpoint(socket: WebSocket):
         await conn.disconnected()
 
 
+class FreshStaticFiles(StaticFiles):
+    """Static files the browser must check before reusing. Without this it can keep an old
+    app.js next to a new index.html after an update; the check is a cheap 304 when nothing
+    changed."""
+
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 # registered last so /ws, /healthz and /api take priority
-app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
+app.mount("/", FreshStaticFiles(directory=WEB_DIR, html=True), name="web")
 
 
 def lan_address():

@@ -3,20 +3,26 @@
 /* a card table wants the whole window, not the shell's narrow column */
 main:has(.sw) {
   max-width: 1400px;
+  padding-top: 10px;
+  padding-bottom: 12px;
+}
+
+main:has(.sw) .game-actions {
+  margin-top: 10px;
 }
 
 /* Sizes follow the window's width and height, so the table fills a phone, half a screen
    or a whole monitor. Text sizes are in em, so they follow the font size set here. */
 .sw {
-  --card-w: clamp(60px, min(12vw, 16vh), 150px); /* cards in your hand */
-  --table-card: calc(var(--card-w) * 1.3); /* the pile and the discards */
+  --card-w: clamp(60px, min(12vw, 12vh), 120px); /* cards in your hand */
+  --table-card: min(calc(var(--card-w) * 1.6), 24vw); /* the pile and the discards */
   --felt: #2a1a3d;
   --red-suit: #ff6b81;
   display: flex;
   flex-direction: column;
-  gap: 0.9em;
+  gap: 0.7em;
   margin: 0 auto;
-  font-size: clamp(16px, min(2.4vw, 2.8vh), 28px);
+  font-size: clamp(16px, min(2.4vw, 2.2vh), 24px);
 }
 
 .sw .btn {
@@ -89,15 +95,36 @@ main:has(.sw) {
 
 /* table */
 
+/* three columns with the discard pile exactly in the middle: the deck to its left, the suit
+   and direction to its right. The felt is sized from the cards, not the window. */
 .sw-table {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: center;
-  gap: clamp(16px, 5vw, 72px);
+  column-gap: calc(var(--table-card) * 0.75); /* room for the older discards to peek out */
+  width: 100%;
+  max-width: calc(var(--table-card) * 6);
+  margin: 0 auto;
+  box-sizing: border-box;
   background: var(--felt);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 1.6em 1em;
+  padding: 1em 1.5em;
+}
+
+@media (max-width: 560px) {
+  .sw-table {
+    column-gap: calc(var(--table-card) * 0.35);
+    padding: 0.75em;
+  }
+}
+
+.sw-table .sw-pile {
+  justify-self: end;
+}
+
+.sw-table .sw-info {
+  justify-self: start;
 }
 
 .sw-pile {
@@ -125,41 +152,46 @@ main:has(.sw) {
   transition: transform 0.15s;
 }
 
+/* how many cards are left, big in the middle of the deck */
 .sw-pile span {
   position: absolute;
-  right: -0.5em;
-  bottom: -0.5em;
-  min-width: 1.8em;
-  padding: 0 0.4em;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  min-width: 1.7em;
+  padding: 0.05em 0.3em;
   border-radius: 999px;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
+  background: rgb(20 11 28 / 0.85);
+  border: 2px solid var(--line);
   color: var(--text);
-  font-size: 0.8em;
-  line-height: 1.7em;
+  font-size: calc(var(--table-card) * 0.26);
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+  pointer-events: none;
 }
 
 .sw-discard {
   position: relative;
-  width: calc(var(--table-card) * 1.5);
+  width: var(--table-card);
   height: calc(var(--table-card) * 1.4);
 }
 
-/* older discards peek out to the left of the top card */
+/* the top card fills the box, so it sits in the middle; older ones peek out to its left */
 .sw-discard img {
   position: absolute;
   top: 0;
-  right: 0;
+  left: 0;
   transform: translateX(calc(var(--i) * var(--table-card) * 0.16)) rotate(calc(var(--i) * 4deg));
 }
 
 .sw-info {
-  font-size: 1.1em;
+  font-size: 1.4em;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 0.3em;
-  min-width: 5em;
+  min-width: 3em;
   font-weight: 600;
 }
 
@@ -235,6 +267,17 @@ main:has(.sw) {
   display: flex;
   justify-content: center;
   gap: 0.5em;
+}
+
+.sw .sw-call {
+  background: #e0334f;
+  border-color: #e0334f;
+  color: #fff;
+  font-weight: 700;
+}
+
+.sw .sw-call:hover:not(:disabled) {
+  background: #c22640;
 }
 
 /* hand */

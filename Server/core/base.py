@@ -2,6 +2,27 @@ class GameError(ValueError):
     """Raised when a setting or an action is not allowed."""
 
 
+MIN_TURN_SECONDS = 15
+MAX_TURN_SECONDS = 30
+
+# settings any turn-based game can add to its schema to get a per-turn timer; the room enforces
+# it by calling the game's timeout() when a player runs out of time
+TIMER_SETTINGS = [
+    {"key": "timer", "label": "Turn timer", "type": "bool", "default": False},
+    {"key": "turn_seconds", "label": "Seconds per turn", "type": "int",
+     "min": MIN_TURN_SECONDS, "max": MAX_TURN_SECONDS, "default": 20},
+]
+
+
+def check_timer(timer, turn_seconds):
+    if not isinstance(timer, bool):
+        raise GameError("Invalid value for turn timer")
+    if (not isinstance(turn_seconds, int) or isinstance(turn_seconds, bool)
+            or not MIN_TURN_SECONDS <= turn_seconds <= MAX_TURN_SECONDS):
+        raise GameError(
+            f"Seconds per turn must be between {MIN_TURN_SECONDS} and {MAX_TURN_SECONDS}")
+
+
 class BaseGame:
     """What a game must provide to be played through the room framework.
 
@@ -61,6 +82,11 @@ class BaseGame:
 
     def view(self, player):
         """The JSON-safe state this player may see. Hide anything secret, e.g. other hands."""
+        raise NotImplementedError
+
+    def timeout(self, player):
+        """The player ran out of time: make a move for them. Only games with the timer
+        settings need this."""
         raise NotImplementedError
 
     def restart(self):

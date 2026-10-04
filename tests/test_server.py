@@ -23,7 +23,8 @@ def test_games_listing(client):
     assert [g["name"] for g in games] == ["connect4", "switch"]
     game = games[0]
     assert (game["min_players"], game["max_players"]) == (2, 2)
-    assert [s["key"] for s in game["settings"]] == ["cols", "rows", "amount"]
+    keys = [s["key"] for s in game["settings"]]
+    assert keys == ["cols", "rows", "amount", "timer", "turn_seconds"]
     switch = games[1]
     assert (switch["min_players"], switch["max_players"]) == (2, 10)
 
@@ -52,14 +53,17 @@ def test_create_room(client):
         assert state["phase"] == LOBBY
         assert state["you"] == state["host"] == 1
         assert state["players"] == [{"id": 1, "name": "Player", "status": CONNECTED}]
-        assert state["settings"] == {"rows": 8, "cols": 9, "amount": 5}
+        assert state["settings"] == {"rows": 8, "cols": 9, "amount": 5, "timer": False,
+                                     "turn_seconds": 20}
         assert state["data"] is None
 
 
 def test_default_settings(client):
     with client.websocket_connect("/ws") as ws:
         ws.send_json({"type": "create", "game": "connect4"})
-        assert recv(ws, "state")["settings"] == {"cols": 7, "rows": 6, "amount": 4}
+        settings = recv(ws, "state")["settings"]
+        assert settings == {"cols": 7, "rows": 6, "amount": 4, "timer": False,
+                            "turn_seconds": 20}
 
 
 @pytest.mark.parametrize(

@@ -1,4 +1,6 @@
-from Server.core.base import BaseGame, GameError
+import random
+
+from Server.core.base import TIMER_SETTINGS, BaseGame, GameError, check_timer
 
 PLAYING = "playing"
 WIN = "win"
@@ -27,19 +29,22 @@ class Connect4(BaseGame):
          "default": 6},
         {"key": "amount", "label": "Donuts in a row to win", "type": "int", "min": MIN_AMOUNT,
          "max_of": ["cols", "rows"], "default": 4},
+        *TIMER_SETTINGS,
     ]
 
     @classmethod
     def create(cls, settings, num_players):
         return cls(**settings)
 
-    def __init__(self, rows=6, cols=7, amount=4):
+    def __init__(self, rows=6, cols=7, amount=4, timer=False, turn_seconds=20):
         for name, value in (("rows", rows), ("cols", cols)):
             if not _is_int(value) or not self.MIN_SIZE <= value <= self.MAX_SIZE:
                 raise GameError(f"{name} must be between {self.MIN_SIZE} and {self.MAX_SIZE}")
         max_amount = max(rows, cols)
         if not _is_int(amount) or not self.MIN_AMOUNT <= amount <= max_amount:
             raise GameError(f"amount must be between {self.MIN_AMOUNT} and {max_amount}")
+
+        check_timer(timer, turn_seconds)
 
         self.rows = rows
         self.cols = cols
@@ -70,6 +75,10 @@ class Connect4(BaseGame):
             self.winner = player
         elif self.status == PLAYING:
             self.turn = 2 if self.turn == 1 else 1
+
+    def timeout(self, player):
+        open_cols = [c for c in range(self.cols) if self.board[c][-1] == 0]
+        self.move(player, random.choice(open_cols))
 
     @property
     def over(self):

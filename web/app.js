@@ -117,6 +117,7 @@ function handle(msg) {
 
     case "state":
       state = msg;
+      state.receivedAt = performance.now();
       render();
       break;
 
@@ -136,6 +137,10 @@ function handle(msg) {
       }
       break;
 
+    case "chat":
+      addChat(msg);
+      break;
+
     case "closed":
       closedByServer = true;
       leaveGame(msg.message);
@@ -149,6 +154,8 @@ function showScreen(name) {
   for (const screen of document.querySelectorAll(".screen")) {
     screen.hidden = screen.id !== `screen-${name}`;
   }
+  $("game-float").hidden = name !== "game";
+  $("confirm-leave").hidden = true;
 }
 
 function showError(id, message) {
@@ -160,6 +167,7 @@ function showError(id, message) {
 function showHome(message = "") {
   state = null;
   mountedKey = null;
+  clearChat();
   showScreen("home");
   showError("home-error", message);
 }
@@ -222,10 +230,62 @@ function buildGameList() {
 
       button.append(icon, name, meta);
       button.addEventListener("click", () => openCreate(info));
-      return button;
+
+      const help = document.createElement("button");
+      help.type = "button";
+      help.className = "info-btn";
+      help.textContent = "i";
+      help.setAttribute("aria-label", `Instructions for ${info.title}`);
+      help.addEventListener("click", () => openHelp(info));
+
+      const row = document.createElement("div");
+      row.className = "game-row";
+      row.append(button, help);
+      return row;
     }),
   );
 }
+
+// ---------- instructions overlay ----------
+
+function openHelp(info) {
+  const game = Games[info.name];
+  const parts = (game && game.instructions) || ["No instructions for this game yet."];
+  $("help-game").textContent = info.title;
+  $("help-body").replaceChildren(
+    ...parts.map((part) => {
+      const p = document.createElement("p");
+      if (typeof part === "string") {
+        p.textContent = part;
+      } else {
+        p.className = "help-big";
+        p.textContent = part.big;
+      }
+      return p;
+    }),
+  );
+  $("help").hidden = false;
+  $("help-close").focus();
+}
+
+function closeHelp() {
+  $("help").hidden = true;
+}
+
+$("help-close").addEventListener("click", closeHelp);
+$("help").addEventListener("click", (e) => {
+  if (e.target === $("help")) closeHelp();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    closeHelp();
+    $("confirm-leave").hidden = true;
+  }
+});
+$("lobby-help").addEventListener("click", () => {
+  const info = state && gameInfo(state.game);
+  if (info) openHelp(info);
+});
 
 $("join-code").addEventListener("input", (e) => {
   e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -485,8 +545,28 @@ function renderFrame() {
   rematch.textContent = iAsked
     ? "Waiting for others…"
     : theyAsked ? "Others want a rematch!" : "Rematch";
-  $("game-leave").textContent = left.length && others.length === 1 ? "Back to home" : "Leave";
+  const alone = others.every((p) => p.status === "left");
+  $("game-leave").title = alone ? "Back to home" : "Leave game";
+  $("game-leave").setAttribute("aria-label", $("game-leave").title);
+  updateTimer();
 }
+
+// the turn countdown: the server sends the seconds left, and we count down from when it arrived
+function updateTimer() {
+  const node = $("turn-timer");
+  if (!state || state.seconds_left == null || state.over) {
+    node.hidden = true;
+    return;
+  }
+  const left = Math.max(0, Math.ceil(state.seconds_left - (performance.now() - state.receivedAt) / 1000));
+  node.textContent = `⏱ ${left}s`;
+  node.classList.toggle("low", left <= 5);
+  node.hidden = false;
+}
+
+setInterval(() => {
+  if (state && state.phase === "playing") updateTimer();
+}, 250);
 
 $("rematch").addEventListener("click", () => send({ type: "rematch" }));
 
@@ -499,7 +579,79 @@ function quit() {
 }
 
 $("lobby-leave").addEventListener("click", quit);
-$("game-leave").addEventListener("click", quit);
+$("game-leave").addEventListener("click", () => {
+  // nothing to lose once everyone else has gone, so no need to ask
+  if (state && state.players.every((p) => p.id === state.you || p.status === "left")) {
+    quit();
+    return;
+  }
+  $("confirm-leave").hidden = false;
+  $("confirm-stay").focus();
+});
+$("confirm-stay").addEventListener("click", () => ($("confirm-leave").hidden = true));
+$("confirm-go").addEventListener("click", quit);
+$("confirm-leave").addEventListener("click", (e) => {
+  if (e.target === $("confirm-leave")) $("confirm-leave").hidden = true;
+});
+
+// ---------- chat: kept only in this tab while the game lasts ----------
+
+const MAX_CHAT_LINES = 100;
+let unread = 0;
+
+function chatOpen() {
+  return !$("chat").hidden;
+}
+
+function addChat(msg) {
+  const log = $("chat-log");
+  const item = document.createElement("li");
+  if (state && msg.player === state.you) item.className = "mine";
+  const who = document.createElement("b");
+  who.textContent = state && msg.player === state.you ? "You" : msg.name;
+  item.append(who, " ", msg.text);
+  log.append(item);
+  while (log.children.length > MAX_CHAT_LINES) log.firstChild.remove();
+  log.scrollTop = log.scrollHeight;
+  if (!chatOpen()) {
+    unread += 1;
+    showUnread();
+  }
+}
+
+function showUnread() {
+  $("chat-unread").textContent = unread > 9 ? "9+" : String(unread);
+  $("chat-unread").hidden = !unread;
+}
+
+function clearChat() {
+  $("chat-log").replaceChildren();
+  $("chat").hidden = true;
+  unread = 0;
+  showUnread();
+}
+
+$("chat-open").addEventListener("click", () => {
+  if (chatOpen()) {
+    $("chat").hidden = true;
+    return;
+  }
+  $("chat").hidden = false;
+  unread = 0;
+  showUnread();
+  $("chat-log").scrollTop = $("chat-log").scrollHeight;
+  $("chat-input").focus();
+});
+
+$("chat-close").addEventListener("click", () => ($("chat").hidden = true));
+
+$("chat-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const text = $("chat-input").value.trim();
+  if (!text) return;
+  send({ type: "chat", text });
+  $("chat-input").value = "";
+});
 
 // ---------- start ----------
 

@@ -1,7 +1,7 @@
 import random
 from collections import deque
 
-from Server.core.base import BaseGame, GameError
+from Server.core.base import TIMER_SETTINGS, BaseGame, GameError, check_timer
 
 SUITS = ("S", "H", "D", "C")
 SYMBOLS = {"S": "♠", "H": "♥", "D": "♦", "C": "♣"}
@@ -79,6 +79,7 @@ class Switch(BaseGame):
          "default": False},
         {"key": "play_on", "label": "Keep playing for 2nd, 3rd...", "type": "bool",
          "default": False},
+        *TIMER_SETTINGS,
     ]
 
     @classmethod
@@ -86,7 +87,7 @@ class Switch(BaseGame):
         return cls(num_players, **settings)
 
     def __init__(self, players, hand_size=7, jack_penalty=5, decks=1, force_play=False,
-                 play_on=False, rng=None):
+                 play_on=False, timer=False, turn_seconds=20, rng=None):
         if not _is_int(players) or not self.min_players <= players <= self.max_players:
             raise GameError(f"Need {self.min_players} to {self.max_players} players")
         if not _is_int(hand_size) or not 1 <= hand_size <= 7:
@@ -99,6 +100,7 @@ class Switch(BaseGame):
             raise GameError("Invalid value for must play if you can")
         if not isinstance(play_on, bool):
             raise GameError("Invalid value for keep playing")
+        check_timer(timer, turn_seconds)
 
         self.num_players = players
         self.hand_size = hand_size
@@ -113,7 +115,7 @@ class Switch(BaseGame):
 
     def _deal(self):
         self.decks = self.start_decks
-        self.force = self.force_play  # switched on for good once the last deck comes in
+        self.force = self.force_play  # switched on for good once an extra deck comes in
         self.pile = [card for _ in range(self.decks) for card in new_deck()]
         self.rng.shuffle(self.pile)
         self.hands = {
@@ -133,6 +135,9 @@ class Switch(BaseGame):
         self.winner = None
         self.places = []  # players who are out, in the order they went out
         self.log = deque(maxlen=LOG_LENGTH)
+        # "Cards!" has to be called during the turn before the one you go out on
+        self.calling = False  # the player whose turn it is has called this turn
+        self.called = set()  # players who called on their last turn
 
     # ---- the framework interface
 
@@ -152,6 +157,11 @@ class Switch(BaseGame):
             self._play(player, action.get("cards"), action.get("suit"))
         elif kind == "draw":
             self._draw_instead(player)
+        elif kind == "call":
+            if self.calling:
+                raise GameError("You already called cards")
+            self.calling = True
+            self._log(player, "called cards!")
         else:
             raise GameError("Invalid action")
 
@@ -164,6 +174,7 @@ class Switch(BaseGame):
             "discard": self.discard[-SHOWN_DISCARDS:],
             "suit": self.suit,
             "pending": dict(self.pending) if self.pending else None,
+            "calling": self.calling,
             "turn": self.turn,
             "direction": self.direction,
             "pile": len(self.pile),
@@ -249,13 +260,19 @@ class Switch(BaseGame):
         elif rank(last) == "Q":
             self._draw(player, 1)
             self._log(player, "didn't cover the queen, picked up 1")
+        elif not remaining and player not in self.called:
+            self._draw(player, 1)
+            self._log(player, "didn't call cards last turn, picked up 1")
 
         if not self.hands[player]:
             self._went_out(player)
         else:
             self._advance()
 
-    def _draw_instead(self, player):
+    def timeout(self, player):
+        self._draw_instead(player, timed_out=True)
+
+    def _draw_instead(self, player, timed_out=False):
         pending = self.pending
         if pending and pending["kind"] == SKIP:
             left = pending["count"] - 1  # the rest of the skips move on to the next player
@@ -266,10 +283,11 @@ class Switch(BaseGame):
             self.pending = None
             self._log(player, f"picked up {got}")
         else:
-            if self.force and any(self.can_start(c) for c in self.hands[player]):
+            if self.force and not timed_out and any(self.can_start(c) for c in self.hands[player]):
                 raise GameError("You have a card you can play")
             got = self._draw(player, 1)
-            self._log(player, "drew a card" if got else "couldn't draw, no cards left")
+            text = "drew a card" if got else "couldn't draw, no cards left"
+            self._log(player, "ran out of time and " + text if timed_out else text)
         self._advance()
 
     @staticmethod
@@ -306,8 +324,8 @@ class Switch(BaseGame):
             self.decks += 1
             self.pile = new_deck()
             self._log(None, "Out of cards, so a new deck was added")
-            if self.decks == MAX_DECKS and not self.force:
-                # stops a game where everyone just keeps picking up
+            if not self.force:
+                # the first extra deck means everyone has been picking up instead of playing
                 self.force = True
                 self._log(None, "From now on you must play if you can")
         else:
@@ -321,6 +339,11 @@ class Switch(BaseGame):
 
     def _advance(self):
         player = self.turn
+        if self.calling:
+            self.called.add(player)
+        else:
+            self.called.discard(player)
+        self.calling = False
         for _ in range(self.num_players):
             player = (player - 1 + self.direction) % self.num_players + 1
             if player in self._active():

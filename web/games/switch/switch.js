@@ -93,6 +93,7 @@
         </div>
         <div class="sw-controls">
           <button class="btn btn-ghost" type="button" data-clear>Clear</button>
+          <button class="btn sw-call" type="button" data-call>Cards!</button>
           <button class="btn" type="button" data-draw>Draw</button>
           <button class="btn btn-primary" type="button" data-play>Play</button>
         </div>
@@ -110,6 +111,11 @@
       root.classList.add("busy"); // cleared by the next render, a state or an error
       send({ type: "draw" });
     };
+    q("[data-call]").addEventListener("click", () => {
+      if (!myTurn() || ctx.data.calling || root.classList.contains("busy")) return;
+      root.classList.add("busy");
+      send({ type: "call" });
+    });
     q("[data-draw]").addEventListener("click", draw);
     q("[data-pile]").addEventListener("click", draw);
     q("[data-play]").addEventListener("click", () => {
@@ -282,6 +288,10 @@
     play.textContent = selected.length > 1 ? `Play ${selected.length}` : "Play";
     q("[data-clear]").hidden = !selected.length;
 
+    const call = q("[data-call]");
+    call.disabled = !turn || g.calling;
+    call.textContent = turn && g.calling ? "Called!" : "Cards!";
+
     const draw = q("[data-draw]");
     draw.disabled = !turn;
     if (g.pending && g.pending.kind === "skip") draw.textContent = "Miss turn";
@@ -290,5 +300,18 @@
   }
 
   window.Games = window.Games || {};
-  window.Games.switch = { icon: `${CARDS}ace_of_spades.png`, preview, mount, render };
+  window.Games.switch = {
+    icon: `${CARDS}ace_of_spades.png`,
+    instructions: [
+      "Be the first to empty your hand. On your turn play a card matching the suit or rank of the top card, or an ace (wild, you pick the suit). Can't or won't? Draw a card.",
+      "You can play several cards in one turn: same rank, or the same suit one step up or down (A sits next to 2 and K).",
+      "2: next player picks up 2 (stacks). Black jack: next player picks up 5–7 (a red jack cancels it). 8: next player misses a turn (stacks). Counter an attack with the same kind of card, or take it.",
+      "King: reverses direction (an odd number of kings in one turn). Queen: cover it with the same suit or another queen, or pick up 1.",
+      "You can't go out on a 2, 8, J, Q, K or ace: you pick up 1 instead.",
+      "Cards! Press the red Cards button during your turn when you think you can go out on your next one. If you play your last card without having called on your previous turn, you pick up 1 and the game goes on.",
+    ],
+    preview,
+    mount,
+    render,
+  };
 })();

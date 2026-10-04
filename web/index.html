@@ -65,7 +65,10 @@
     </section>
 
     <section id="screen-lobby" class="screen card center" hidden>
-      <p id="lobby-game" class="muted"></p>
+      <p class="lobby-title">
+        <span id="lobby-game" class="muted"></span>
+        <button id="lobby-help" class="info-btn" type="button" aria-label="Instructions">i</button>
+      </p>
       <p class="muted small">Share this code</p>
       <p id="lobby-code" class="big-code"></p>
       <div class="copy-row">
@@ -87,16 +90,70 @@
     </section>
 
     <section id="screen-game" class="screen" hidden>
+      <p id="turn-timer" class="turn-timer" hidden></p>
       <div id="game-root"></div>
       <p id="banner" class="banner" role="status" hidden></p>
       <div class="actions game-actions">
-        <button id="game-leave" class="btn btn-ghost" type="button">Leave</button>
         <button id="rematch" class="btn btn-primary" type="button" hidden>Rematch</button>
       </div>
     </section>
   </main>
 
+  <!-- float over the game: leave in the bottom left corner, chat in the bottom right -->
+  <div id="game-float" hidden>
+      <button id="game-leave" class="float-btn leave-btn" type="button" aria-label="Leave game"
+              title="Leave game">
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="3"
+                stroke-linecap="round"/>
+        </svg>
+      </button>
+
+      <button id="chat-open" class="float-btn chat-open" type="button" aria-label="Chat"
+              title="Chat">
+        <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+          <path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 4v-4H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>
+        </svg>
+        <span id="chat-unread" class="chat-unread" hidden></span>
+      </button>
+
+      <div id="chat" class="chat card" role="dialog" aria-labelledby="chat-title" hidden>
+        <div class="chat-head">
+          <h2 id="chat-title">Chat</h2>
+          <button id="chat-close" class="info-btn" type="button" aria-label="Close chat">✕</button>
+        </div>
+        <ol id="chat-log" class="chat-log" aria-live="polite"></ol>
+        <form id="chat-form" class="chat-form" autocomplete="off">
+          <label class="sr-only" for="chat-input">Message</label>
+          <input id="chat-input" class="name-input" maxlength="200" placeholder="Say something…"
+                 spellcheck="true">
+          <button class="btn btn-primary" type="submit">Send</button>
+        </form>
+      </div>
+  </div>
+
   <div id="toast" class="toast" role="alert" hidden></div>
+
+  <div id="confirm-leave" class="overlay" hidden>
+    <div class="confirm-window card" role="alertdialog" aria-modal="true"
+         aria-labelledby="confirm-title">
+      <h2 id="confirm-title">Are you sure you want to leave?</h2>
+      <p class="muted">You won't be able to come back into this game.</p>
+      <div class="actions">
+        <button id="confirm-stay" class="btn btn-ghost" type="button">Stay</button>
+        <button id="confirm-go" class="btn btn-danger" type="button">Leave</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="help" class="overlay" hidden>
+    <div class="help-window card" role="dialog" aria-modal="true" aria-labelledby="help-title">
+      <h2 id="help-title">Instructions</h2>
+      <p id="help-game" class="muted"></p>
+      <div id="help-body"></div>
+      <button id="help-close" class="btn btn-primary" type="button">Close</button>
+    </div>
+  </div>
 
   <!-- each game registers itself in window.Games before the shell starts -->
   <script src="games/connect4/connect4.js"></script>

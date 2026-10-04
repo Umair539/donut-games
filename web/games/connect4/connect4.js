@@ -135,5 +135,11 @@
   }
 
   window.Games = window.Games || {};
-  window.Games.connect4 = { icon: SPRITES[2], preview, mount, render };
+  window.Games.connect4 = {
+    icon: SPRITES[2],
+    instructions: [{ big: "BRUH" }],
+    preview,
+    mount,
+    render,
+  };
 })();

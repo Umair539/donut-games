@@ -1,4 +1,5 @@
 import secrets
+import time
 
 from Server.games import GAMES
 
@@ -9,6 +10,8 @@ DEFAULT_NAME = "Player"
 MAX_ROOMS = 1000
 RECONNECT_GRACE = 60  # seconds a player has to come back before their seat is lost
 IDLE_TIMEOUT = 30 * 60  # seconds without activity before a room is closed
+MAX_CHAT_LENGTH = 200
+CHAT_GAP = 0.5  # seconds between one player's chat messages
 
 # room phases
 LOBBY = "lobby"
@@ -24,14 +27,18 @@ class RoomError(Exception):
     """Raised when a room action is not allowed."""
 
 
+def _tidy(raw):
+    """No control characters, single spaces."""
+    return " ".join("".join(ch for ch in raw if ch.isprintable() or ch.isspace()).split())
+
+
 def clean_name(raw):
     """Tidy a name typed by a player: no control characters, single spaces, limited length."""
     if raw is None:
         raw = ""
     if not isinstance(raw, str):
         raise RoomError("Invalid name")
-    name = " ".join("".join(ch for ch in raw if ch.isprintable() or ch.isspace()).split())
-    return name[:MAX_NAME_LENGTH].rstrip() or DEFAULT_NAME
+    return _tidy(raw)[:MAX_NAME_LENGTH].rstrip() or DEFAULT_NAME
 
 
 class Seat:
@@ -42,6 +49,7 @@ class Seat:
         self.socket = socket
         self.away_since = None
         self.left = False
+        self.last_chat = None
 
     @property
     def status(self):
@@ -63,6 +71,7 @@ class Room:
         self.rematch = set()  # players who asked for a rematch
         self.closed = None  # reason, once the room has been shut down
         self.last_active = now
+        self.deadline = None  # when the current turn runs out, if the game has a turn timer
 
     @property
     def phase(self):
@@ -118,6 +127,7 @@ class Room:
         if self.game is not None:
             seat.left = True
             self.game.player_left(seat.player)
+            self._arm(time.monotonic())  # the turn may have moved on
         elif seat is self.host:
             self.closed = "The host left the game"
         elif self.seats.get(seat.player) is seat:
@@ -145,14 +155,55 @@ class Room:
         self._renumber()
         self.game = self.game_cls.create(self.settings, count)
         self.last_active = now
+        self._arm(now)
 
     def action(self, seat, action, now):
         if self.game is None:
             raise RoomError("Game has not started")
         if sum(1 for s in self.seats.values() if not s.left) < self.game_cls.min_players:
             raise RoomError("Not enough players left")
+        turn = getattr(self.game, "turn", None)
         self.game.apply(seat.player, action)
         self.last_active = now
+        if self.game.over or getattr(self.game, "turn", None) != turn:
+            self._arm(now)  # some actions, like calling cards in Switch, don't end the turn
+
+    def chat(self, seat, text, now):
+        """Check a chat line and return the message to send to everyone. Nothing is stored,
+        so only players connected at the time see it."""
+        if not isinstance(text, str):
+            raise RoomError("Invalid message")
+        text = _tidy(text)[:MAX_CHAT_LENGTH].rstrip()
+        if not text:
+            raise RoomError("Type a message first")
+        if seat.last_chat is not None and now - seat.last_chat < CHAT_GAP:
+            raise RoomError("Slow down a little")
+        seat.last_chat = now
+        self.last_active = now
+        return {"type": "chat", "player": seat.player, "name": seat.name, "text": text}
+
+    def _arm(self, now):
+        """Restart the turn clock, or stop it if there is no timer or the game is over."""
+        game = self.game
+        if self.settings.get("timer") and game is not None and not game.over:
+            self.deadline = now + self.settings["turn_seconds"]
+        else:
+            self.deadline = None
+
+    def seconds_left(self, now):
+        return None if self.deadline is None else max(0.0, self.deadline - now)
+
+    def check_timer(self, now):
+        """Make a move for the player whose time ran out. Returns True if that happened.
+        This doesn't count as activity, so a room where everyone walked away still expires."""
+        if self.deadline is None or now < self.deadline:
+            return False
+        if sum(1 for s in self.seats.values() if not s.left) < self.game_cls.min_players:
+            self.deadline = None  # nobody left to play against
+            return False
+        self.game.timeout(self.game.turn)
+        self._arm(now)
+        return True
 
     def request_rematch(self, seat, now):
         if self.game is None or not self.game.over:
@@ -163,6 +214,7 @@ class Room:
         if self.rematch == set(self.seats):
             self.game.restart()
             self.rematch.clear()
+            self._arm(now)
         self.last_active = now
 
     def _renumber(self):
@@ -203,6 +255,7 @@ class Room:
             ],
             "over": game.over if game else False,
             "rematch": sorted(self.rematch),
+            "seconds_left": self.seconds_left(time.monotonic()),
             "data": game.view(seat.player) if game else None,
         }
 
@@ -241,7 +294,7 @@ class RoomManager:
             if room.is_dead(now):
                 self.remove(room)
                 removed.append(room)
-            elif expired:
+            elif room.check_timer(now) or expired:
                 changed.append(room)
         return changed, removed
 

@@ -6,8 +6,9 @@ from Server.core.base import GameError
 from Server.games.switch import MAX_DECKS, WIN, Switch, connects
 
 
-def setup(players=2, hands=None, top="5H", pile=None, **settings):
-    """A game with known cards. Player 1 starts."""
+def setup(players=2, hands=None, top="5H", pile=None, called=True, **settings):
+    """A game with known cards. Player 1 starts. Everyone has called cards unless called is
+    False, so tests about other rules can go out straight away."""
     game = Switch(players, rng=random.Random(0), **settings)
     for player, hand in (hands or {}).items():
         game.hands[player] = list(hand)
@@ -16,6 +17,8 @@ def setup(players=2, hands=None, top="5H", pile=None, **settings):
     if pile is not None:
         game.pile = list(pile)
     game.turn = 1
+    if called:
+        game.called = set(game.hands)
     return game
 
 
@@ -261,6 +264,7 @@ def test_play_on_for_places():
     with pytest.raises(GameError):
         game.apply(1, {"type": "draw"})  # out players only watch
     play(game, "3S")
+    call(game)
     play(game, "3H")
     assert game.turn == 2  # player 1 is skipped
     draw(game)
@@ -311,14 +315,71 @@ def test_discards_shuffle_back_in():
     assert len(game.hands[1]) == 2 and game.discard == ["5H"] and len(game.pile) == 1
 
 
-def test_decks_added_until_three_then_must_play():
+def test_first_extra_deck_forces_play_and_decks_stop_at_three():
     game = setup(hands={1: ["9C"], 2: ["9D"]}, pile=[])
     assert game.decks == 1 and not game.force
     draw(game)
     assert game.decks == 2 and len(game.pile) == 51
+    assert game.force  # one deck ran out, so from now on you must play if you can
     game.pile = []
     draw(game)
-    assert game.decks == MAX_DECKS and game.force
+    assert game.decks == MAX_DECKS
     game.pile = []
     draw(game)  # no more decks: nothing to draw, but the turn still passes
     assert game.decks == MAX_DECKS and game.turn == 2
+
+
+# ---- calling cards
+
+
+def call(game):
+    game.apply(game.turn, {"type": "call"})
+
+
+def test_going_out_without_calling_picks_up_one():
+    game = setup(hands={1: ["5S"], 2: ["9C"]}, pile=["7D"], called=False)
+    play(game, "5S")
+    assert not game.over
+    assert game.hands[1] == ["7D"]
+    assert game.turn == 2
+
+
+def test_calling_on_the_turn_before_lets_you_go_out():
+    game = setup(hands={1: ["5S", "6S"], 2: ["9C", "9D"]}, pile=["7D"], called=False)
+    call(game)
+    assert game.calling
+    play(game, "5S")
+    assert not game.calling and game.turn == 2
+    draw(game)
+    play(game, "6S")
+    assert game.over and game.winner == 1
+
+
+def test_a_call_only_lasts_one_turn():
+    game = setup(hands={1: ["5S", "6S", "7S"], 2: ["9C", "9D", "9H"]}, pile=["2D", "3D"],
+                 called=False)
+    call(game)
+    play(game, "5S")
+    draw(game)
+    play(game, "6S")  # didn't call again
+    draw(game)
+    play(game, "7S")
+    assert not game.over
+    assert len(game.hands[1]) == 1
+
+
+def test_calling_doesnt_end_the_turn_and_only_once():
+    game = setup(hands={1: ["5S", "6S"], 2: ["9C"]}, called=False)
+    call(game)
+    assert game.turn == 1
+    with pytest.raises(GameError):
+        call(game)
+    with pytest.raises(GameError):
+        game.apply(2, {"type": "call"})
+
+
+def test_two_starting_decks_force_play_when_the_third_comes_in():
+    game = setup(hands={1: ["9C"], 2: ["9D"]}, pile=[], decks=2)
+    assert game.decks == 2 and not game.force
+    draw(game)
+    assert game.decks == 3 and game.force

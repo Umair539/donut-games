@@ -14,6 +14,7 @@ from Server.core.rooms import (
     LEFT,
     RECONNECT_GRACE,
     Room,
+    RoomError,
     RoomManager,
 )
 from Server.games import GAMES
@@ -317,3 +318,76 @@ def test_room_codes_are_unique():
     manager = RoomManager()
     codes = {manager.create(0, "counting", {}).code for _ in range(200)}
     assert len(codes) == 200
+
+
+# turn timer
+
+def timed_room(game, **settings):
+    cls = GAMES[game]
+    room = Room("ABCD", cls, cls.validate_settings({"timer": True, **settings}), now=0)
+    for _ in range(2):
+        room.join(object(), now=0)
+    room.start(room.host, now=0)
+    return room
+
+
+def test_connect4_timeout_drops_a_random_donut_and_passes_the_turn():
+    room = timed_room("connect4", turn_seconds=15)
+    assert not room.check_timer(now=14)
+    assert room.check_timer(now=15)
+    assert sum(1 for col in room.game.board for cell in col if cell == 1) == 1
+    assert room.game.turn == 2
+    assert room.seconds_left(now=15) == 15
+
+
+def test_switch_timeout_picks_up_even_when_play_is_forced():
+    room = timed_room("switch", force_play=True)
+    player = room.game.turn
+    before = len(room.game.hands[player])
+    assert room.check_timer(now=20)
+    assert len(room.game.hands[player]) == before + 1
+    assert room.game.turn != player
+
+
+def test_an_action_restarts_the_clock():
+    room = timed_room("connect4")
+    room.action(room.seats[1], {"col": 0}, now=10)
+    assert room.seconds_left(now=10) == 20
+    assert not room.check_timer(now=29)
+
+
+def test_no_timer_means_no_deadline():
+    cls = GAMES["connect4"]
+    room = Room("ABCD", cls, cls.validate_settings({}), now=0)
+    for _ in range(2):
+        room.join(object(), now=0)
+    room.start(room.host, now=0)
+    assert room.seconds_left(now=0) is None
+    assert not room.check_timer(now=9999)
+
+
+def test_turn_seconds_must_be_15_to_30():
+    for bad in (14, 31, True):
+        with pytest.raises(GameError):
+            GAMES["switch"].validate_settings({"turn_seconds": bad})
+
+
+def test_calling_cards_does_not_reset_the_turn_clock():
+    room = timed_room("switch")
+    player = room.game.turn
+    room.action(room.seats[player], {"type": "call"}, now=10)
+    assert room.seconds_left(now=10) == 10
+
+
+# chat
+
+def test_chat_is_tidied_and_rate_limited():
+    room, (host, guest) = new_room()
+    line = room.chat(guest, "  hi\n  there ", now=1)
+    assert line == {"type": "chat", "player": 2, "name": guest.name, "text": "hi there"}
+    with pytest.raises(RoomError):
+        room.chat(guest, "again", now=1.2)
+    assert room.chat(guest, "x" * 500, now=2)["text"] == "x" * 200
+    for bad in ("   ", None, 5):
+        with pytest.raises(RoomError):
+            room.chat(host, bad, now=10)

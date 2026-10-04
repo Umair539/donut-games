@@ -151,6 +151,81 @@ p {
   gap: 10px;
 }
 
+.game-row {
+  position: relative;
+}
+
+.info-btn {
+  font: inherit;
+  font-weight: 700;
+  font-family: Georgia, serif;
+  font-style: italic;
+  font-size: 0.85rem;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  line-height: 1;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.info-btn:hover,
+.info-btn:focus-visible {
+  color: var(--text);
+  border-color: var(--pink);
+}
+
+.game-row .info-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+.lobby-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgb(0 0 0 / 0.6);
+}
+
+.help-window {
+  width: min(420px, 100%);
+  max-height: 80vh;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.help-window p {
+  margin: 0 0 10px;
+  line-height: 1.45;
+}
+
+.help-window .help-big {
+  font-size: clamp(3rem, 18vw, 5rem);
+  font-weight: 700;
+  text-align: center;
+  color: var(--pink);
+  margin: 16px 0 24px;
+}
+
+.help-window .btn {
+  width: 100%;
+}
+
 .game-option {
   display: grid;
   grid-template-columns: 48px 1fr;
@@ -487,6 +562,169 @@ input[type="range"] {
   border-radius: 10px;
   background: rgb(255 204 102 / 0.12);
   color: var(--warn);
+}
+
+/* chat: a small window over the bottom right, so the game stays playable behind it */
+
+.float-btn {
+  position: fixed;
+  bottom: 16px;
+  z-index: 15;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: #fff;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.45);
+  cursor: pointer;
+  transition: transform 0.15s, background 0.15s;
+}
+
+.float-btn:hover {
+  transform: scale(1.06);
+}
+
+.float-btn:focus-visible {
+  outline: 3px solid var(--text);
+  outline-offset: 3px;
+}
+
+.leave-btn {
+  left: 16px;
+  background: #e0334f;
+}
+
+.leave-btn:hover {
+  background: #c22640;
+}
+
+.chat-open {
+  right: 16px;
+  background: var(--pink);
+}
+
+.chat-open:hover {
+  background: var(--pink-dark);
+}
+
+/* Rematch sits between the two corner buttons */
+#screen-game .game-actions {
+  justify-content: center;
+  padding: 0 64px;
+}
+
+.btn-danger {
+  background: #e0334f;
+  border-color: #e0334f;
+  color: #fff;
+}
+
+.btn-danger:hover {
+  background: #c22640;
+}
+
+.confirm-window {
+  width: min(360px, 100%);
+  text-align: center;
+}
+
+.confirm-window h2 {
+  margin-top: 0;
+}
+
+.confirm-window .actions {
+  justify-content: center;
+}
+
+.chat-unread {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #e0334f;
+  border: 2px solid var(--bg);
+  color: #fff;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.75rem;
+  line-height: 18px;
+}
+
+.chat {
+  position: fixed;
+  right: 16px;
+  bottom: 80px;
+  z-index: 15;
+  width: min(340px, calc(100vw - 32px));
+  height: min(380px, calc(100dvh - 120px));
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+}
+
+.chat:not([hidden]) {
+  display: flex;
+}
+
+.chat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.chat-head h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.chat-head .info-btn {
+  font-style: normal;
+  font-family: inherit;
+}
+
+.chat-log {
+  flex: 1;
+  overflow-y: auto;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  font-size: 0.95rem;
+  overflow-wrap: anywhere;
+}
+
+.chat-log li {
+  padding: 3px 0;
+}
+
+.chat-log li.mine b {
+  color: var(--pink);
+}
+
+.chat-form {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-form input {
+  flex: 1;
+  min-width: 0;
+}
+
+.turn-timer {
+  margin: 0 0 8px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1.2rem;
+}
+
+.turn-timer.low {
+  color: var(--error);
 }
 
 .game-actions {

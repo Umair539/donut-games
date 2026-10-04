@@ -3,6 +3,12 @@ name: Build and push to Google Artifact Registry
 on:
   push:
     branches: [main]
+    paths: # only what ends up in the image, plus this file
+      - Server/**
+      - web/**
+      - Dockerfile
+      - requirements.txt
+      - .github/workflows/gar.yml
   workflow_dispatch:
 
 permissions:

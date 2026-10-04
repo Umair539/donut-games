@@ -56,7 +56,7 @@ flake8 is set to a 100 character line limit in **`.flake8`**.
 
 ## Deploying on AWS Lightsail
 
-The **`Dockerfile`** runs the server and web pages as one container on a Lightsail container service (about $7/month, `nano`). Lightsail gives it an `https://...cs.amazonaws.com` address, and WebSockets work over it, so no domain is needed. **`infra/main.tf`** is the Terraform.
+The **`Dockerfile`** runs the server and web pages as one container on a Lightsail container service (about $7/month, `nano`). Lightsail gives it an `https://...cs.amazonaws.com` address, and WebSockets work over it, so no domain is needed. **`infra/aws/`** is the Terraform.
 
 Needs Terraform, Docker, the AWS CLI configured with credentials, and the [Lightsail plugin](https://docs.aws.amazon.com/lightsail/latest/userguide/amazon-lightsail-install-software.html) (`lightsailctl`) for pushing images.
 

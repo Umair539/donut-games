@@ -1,0 +1,40 @@
+#!/bin/bash
+# Runs on every boot: installs Docker if needed and runs the image from Artifact Registry on port 80.
+# HTTPS is not handled here, Cloudflare's proxy provides it.
+set -euxo pipefail
+
+if ! command -v docker > /dev/null; then
+  apt-get update
+  apt-get install -y ca-certificates curl cron
+  curl -fsSL https://get.docker.com | sh
+fi
+
+mkdir -p /opt/donut-games
+cat > /opt/donut-games/update.sh <<'UPDATE'
+#!/bin/bash
+# Pulls the latest image and restarts the server only if it changed. Cron runs this every 5 minutes.
+set -euo pipefail
+image='${image}'
+docker pull -q "$image" > /dev/null
+latest=$(docker image inspect -f '{{.Id}}' "$image")
+running=$(docker inspect -f '{{.Image}}' donut-games 2>/dev/null || true)
+if [ "$latest" != "$running" ]; then
+  docker rm -f donut-games 2> /dev/null || true
+  docker run -d --name donut-games --restart unless-stopped -p 80:8000 "$image"
+  docker image prune -f
+fi
+UPDATE
+chmod +x /opt/donut-games/update.sh
+
+# 1 GB of RAM is tight, so add swap
+if [ ! -f /swapfile ]; then
+  fallocate -l 1G /swapfile && chmod 600 /swapfile && mkswap /swapfile
+  echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+swapon /swapfile 2> /dev/null || true
+
+# This is the deploy mechanism (GitHub can't SSH to an IPv6-only server), and it also covers
+# the first boot, before any image has been pushed.
+echo '*/5 * * * * root /opt/donut-games/update.sh >> /var/log/donut-update.log 2>&1' > /etc/cron.d/donut-games
+
+/opt/donut-games/update.sh || true

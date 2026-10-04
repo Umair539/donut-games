@@ -12,6 +12,6 @@ __pycache__/
 .vscode/
 
 # terraform
-infra/.terraform/
-infra/*.tfstate*
-infra/terraform.tfvars
+infra/**/.terraform/
+infra/**/*.tfstate*
+infra/**/terraform.tfvars

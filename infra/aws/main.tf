@@ -33,6 +33,7 @@ provider "aws" {
 resource "aws_ecrpublic_repository" "app" {
   provider        = aws.us_east_1
   repository_name = var.name
+  force_destroy   = true # lets terraform destroy delete the repository even with images in it
 }
 
 locals {

@@ -38,6 +38,7 @@ resource "google_iam_workload_identity_pool_provider" "github" {
 resource "google_service_account" "github_push" {
   account_id   = "${var.name}-github-push"
   display_name = "GitHub Actions push to Artifact Registry"
+  depends_on   = [google_project_service.apis]
 }
 
 resource "google_service_account_iam_member" "github_push_wif" {

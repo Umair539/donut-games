@@ -31,8 +31,9 @@ are secret.
 
 ## 3. Push the first image
 
-Push to `main` or run the workflow by hand. The `push-gar` job runs next to the ECR one. It's
-skipped while `GAR_IMAGE` is unset.
+Push to `main` or run **Build and push to Google Artifact Registry** by hand
+(`.github/workflows/gar.yml`). It runs next to the ECR workflow and fails until the three
+variables above are set.
 
 ## 4. Create the server
 
@@ -51,7 +52,7 @@ work. Test through the domain.
 ## 6. Retire AWS
 
 Once the site works from Google: run `terraform destroy` in `infra/aws/` and delete that folder, then
-delete the `push` job and `AWS_ROLE_ARN` / `ECR_PUBLIC_URI` from GitHub.
+delete `.github/workflows/ecr.yml` and `AWS_ROLE_ARN` / `ECR_PUBLIC_URI` from GitHub.
 
 ## Staying free
 

@@ -49,8 +49,11 @@ systemctl restart cloudflared
 mkdir -p /opt/donut-games
 cat > /opt/donut-games/update.sh <<'UPDATE'
 #!/bin/bash
-# Pulls the latest image and restarts the server only if it changed. Cron runs this every 5 minutes.
+# Pulls the latest image and restarts the server only if it changed. GitHub runs this over SSH
+# after pushing an image, and cron runs it hourly in case that didn't happen.
 set -euo pipefail
+exec 9> /run/donut-update.lock
+flock 9 # GitHub and cron at the same moment would both try to replace the container
 image='${image}'
 docker pull -q "$image" > /dev/null
 latest=$(docker image inspect -f '{{.Id}}' "$image")
@@ -58,11 +61,24 @@ running=$(docker inspect -f '{{.Image}}' donut-games 2>/dev/null || true)
 if [ "$latest" != "$running" ]; then
   docker rm -f donut-games 2> /dev/null || true
   docker run -d --name donut-games --restart unless-stopped -p 127.0.0.1:8000:8000 \
-    -e ALLOWED_ORIGINS='${allowed_origins}' "$image"
-  docker image prune -f
+    -e ALLOWED_ORIGINS='${allowed_origins}' "$image" > /dev/null
+  docker image prune -f > /dev/null
+  echo "$(date -u +%FT%TZ) deployed $latest"
+else
+  echo "$(date -u +%FT%TZ) already running $latest"
 fi
 UPDATE
 chmod +x /opt/donut-games/update.sh
+
+# The user GitHub deploys as. Its key is forced to run update.sh (through sudo, which allows
+# nothing else), so it can't get a shell, forward ports or run anything else.
+id deploy > /dev/null 2>&1 || useradd --create-home --shell /bin/bash deploy
+install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
+echo 'restrict,command="sudo /opt/donut-games/update.sh" ${deploy_ssh_key}' > /home/deploy/.ssh/authorized_keys
+chown deploy:deploy /home/deploy/.ssh/authorized_keys
+chmod 600 /home/deploy/.ssh/authorized_keys
+echo 'deploy ALL=(root) NOPASSWD: /opt/donut-games/update.sh' > /etc/sudoers.d/deploy
+chmod 440 /etc/sudoers.d/deploy
 
 # 1 GB of RAM is tight, so add swap
 if [ ! -f /swapfile ]; then
@@ -71,9 +87,9 @@ if [ ! -f /swapfile ]; then
 fi
 swapon /swapfile 2> /dev/null || true
 
-# This is the deploy mechanism (GitHub can't SSH to an IPv6-only server), and it also covers
-# the first boot, before any image has been pushed.
-echo '*/5 * * * * root /opt/donut-games/update.sh >> /var/log/donut-update.log 2>&1' > /etc/cron.d/donut-games
+# Normally GitHub deploys over SSH straight after a push. This catches a deploy that failed, and
+# costs little: an unchanged image is only a small manifest check.
+echo '0 * * * * root /opt/donut-games/update.sh >> /var/log/donut-update.log 2>&1' > /etc/cron.d/donut-games
 
 # update.sh only replaces the container when the image changes, so remove it here too: a changed
 # startup script (new docker run options) then takes effect on the next boot.

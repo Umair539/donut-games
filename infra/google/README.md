@@ -89,6 +89,35 @@ e. In Cloudflare DNS, delete the **AAAA** record for `donutgames.co.uk`, then ru
    `terraform apply`. It puts the Pages site on the domain and removes the old port 80 firewall
    rule.
 
+## Deploying from GitHub over SSH
+
+After pushing an image, `gar.yml` SSHes in through the tunnel at `ssh.donutgames.co.uk` and runs
+`update.sh`, so the new version is live within seconds. Cloudflare Access only lets the GitHub
+service token through, and the deploy key can only run `update.sh`. Cron still checks hourly in
+case a deploy didn't happen. Setup (`deploy.tf`):
+
+1. Add **Access: Apps and Policies: Edit** and **Access: Service Tokens: Edit** to your Cloudflare
+   API token, then `terraform apply`.
+2. Reset the VM so the startup script adds the deploy user:
+   `gcloud compute instances reset donut-games --zone us-east1-b`
+3. Get the VM's SSH host key through the tunnel, with
+   [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
+   installed. Run it before step 1's Access app exists, or log in when the browser opens. The
+   login fails, but the key is saved to `kh`:
+
+   ```bash
+   ssh -o UserKnownHostsFile=kh -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=ssh-ed25519 -o ProxyCommand="cloudflared access ssh --hostname %h" nobody@ssh.donutgames.co.uk
+   ```
+
+4. In GitHub, **Settings > Secrets and variables > Actions**:
+
+   | Kind | Name | Value |
+   | --- | --- | --- |
+   | Secret | `DEPLOY_SSH_KEY` | `terraform output -raw deploy_ssh_key` |
+   | Secret | `CF_ACCESS_CLIENT_ID` | `terraform output -raw cf_access_client_id` |
+   | Secret | `CF_ACCESS_CLIENT_SECRET` | `terraform output -raw cf_access_client_secret` |
+   | Variable | `SSH_KNOWN_HOSTS` | the line in `kh` from step 3 |
+
 ## 6. Retire AWS
 
 Once the site works from Google: run `terraform destroy` in `infra/aws/` and delete that folder, then
@@ -109,7 +138,8 @@ SSH: `gcloud compute ssh donut-games --zone us-east1-b` (needs IPv6 on your mach
 serial console in the Compute Engine page.
 
 - Startup log: `sudo journalctl -u google-startup-scripts`
-- Deploy log: `sudo cat /var/log/donut-update.log`
+- Deploy log: the **Deploy to the server** step in GitHub Actions, and for the hourly check
+  `sudo cat /var/log/donut-update.log`
 - Container: `sudo docker ps` and `sudo docker logs donut-games`
 - Force an update now: `sudo /opt/donut-games/update.sh`
 - Tunnel: `sudo systemctl status cloudflared` and `sudo journalctl -u cloudflared`, or

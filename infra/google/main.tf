@@ -10,6 +10,10 @@ terraform {
       source  = "cloudflare/cloudflare"
       version = "~> 5.0"
     }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
   }
 }
 
@@ -159,8 +163,9 @@ resource "google_compute_instance" "server" {
   metadata = {
     enable-oslogin = "TRUE"
     startup-script = replace(templatefile("${path.module}/startup.sh.tftpl", {
-      image        = local.image
-      tunnel_token = data.cloudflare_zero_trust_tunnel_cloudflared_token.server.token
+      image          = local.image
+      tunnel_token   = data.cloudflare_zero_trust_tunnel_cloudflared_token.server.token
+      deploy_ssh_key = trimspace(tls_private_key.deploy.public_key_openssh)
       # the Pages site, at the domain and at its pages.dev address
       allowed_origins = "https://${var.domain},https://${cloudflare_pages_project.web.subdomain}"
     }), "\r", "")

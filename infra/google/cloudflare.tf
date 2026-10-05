@@ -3,7 +3,8 @@
 # is open to the internet except SSH.
 #
 # Needs a Cloudflare API token in the CLOUDFLARE_API_TOKEN environment variable, with Account >
-# Cloudflare Tunnel: Edit, Zone > DNS: Edit and Account > Cloudflare Pages: Edit.
+# Cloudflare Tunnel: Edit, Zone > DNS: Edit, Account > Cloudflare Pages: Edit, and for deploy.tf
+# Account > Access: Apps and Policies: Edit and Account > Access: Service Tokens: Edit.
 
 provider "cloudflare" {}
 
@@ -25,6 +26,7 @@ variable "domain" {
 
 locals {
   server_host = "server.${var.domain}"
+  ssh_host    = "ssh.${var.domain}"
 }
 
 # --- Game server ---
@@ -48,6 +50,10 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "server" {
       {
         hostname = local.server_host
         service  = "http://127.0.0.1:8000" # the container, published on the VM's loopback only
+      },
+      {
+        hostname = local.ssh_host # for deploys from GitHub, see deploy.tf
+        service  = "ssh://127.0.0.1:22"
       },
       { service = "http_status:404" }, # the last rule must match everything
     ]

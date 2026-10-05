@@ -109,21 +109,11 @@ resource "google_compute_subnetwork" "subnet" {
   ipv6_access_type = "EXTERNAL"
 }
 
-# No rule for web traffic: it comes in through the Cloudflare Tunnel (cloudflare.tf), which the VM
-# opens outwards.
-resource "google_compute_firewall" "ssh" {
-  name          = "${var.name}-ssh"
-  network       = google_compute_network.vpc.id
-  source_ranges = ["::/0"]
+# No firewall rules, so nothing can connect in. Web traffic and GitHub's deploys come through the
+# Cloudflare Tunnel (cloudflare.tf, deploy.tf), which the VM opens outwards.
 
-  allow {
-    protocol = "tcp"
-    ports    = ["22"]
-  }
-}
-
-# The VM needs an external address to reach the internet (registry, tunnel) and for SSH. Reserved
-# so it stays the same across restarts. Static IPv6 addresses are free, unlike IPv4.
+# The VM needs an external address to reach the internet (registry, tunnel), though nothing
+# reaches it this way. Reserved so it stays the same across restarts. Static IPv6 addresses are free, unlike IPv4.
 resource "google_compute_address" "server" {
   name               = var.name
   region             = var.region
@@ -170,11 +160,6 @@ resource "google_compute_instance" "server" {
       allowed_origins = "https://${var.domain},https://${cloudflare_pages_project.web.subdomain}"
     }), "\r", "")
   }
-}
-
-output "ipv6_address" {
-  description = "For SSH. Web traffic doesn't use it, it comes through the tunnel"
-  value       = google_compute_address.server.address
 }
 
 output "image" {

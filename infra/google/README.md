@@ -134,17 +134,16 @@ delete `.github/workflows/ecr.yml` and `AWS_ROLE_ARN` / `ECR_PUBLIC_URI` from Gi
 
 ## If something doesn't work
 
-SSH: `gcloud compute ssh donut-games --zone us-east1-b` (needs IPv6 on your machine), or use the
-serial console in the Compute Engine page.
+Nothing can SSH in except GitHub's deploy, which can only run `update.sh`. So a fix goes out as a
+new deploy, and these show what's happening without logging in:
 
-- Startup log: `sudo journalctl -u google-startup-scripts`
-- Deploy log: the **Deploy to the server** step in GitHub Actions, and for the hourly check
-  `sudo cat /var/log/donut-update.log`
-- Container: `sudo docker ps` and `sudo docker logs donut-games`
-- Force an update now: `sudo /opt/donut-games/update.sh`
-- Tunnel: `sudo systemctl status cloudflared` and `sudo journalctl -u cloudflared`, or
-  **Zero Trust > Networks > Tunnels** in Cloudflare, which shows whether it's connected
-- The server directly, bypassing Cloudflare: `curl http://127.0.0.1:8000/healthz` on the VM
+- Is it up: `https://server.donutgames.co.uk/healthz` should give `{"ok":true}`
+- Deploy: the **Deploy to the server** step in GitHub Actions. Re-running the workflow deploys again.
+- Tunnel: **Zero Trust > Networks > Tunnels** in Cloudflare shows whether the VM is connected
+- Boot log, including the startup script, cloudflared and the hourly check's output on boot:
+  `gcloud compute instances get-serial-port-output donut-games --zone us-east1-b`
+- Last resort: `gcloud compute instances reset donut-games --zone us-east1-b` reruns the startup
+  script, which reinstalls anything missing and restarts the container.
 
 If the server can't reach Docker's install site or the registry over IPv6, change both
 `stack_type`s to `IPV4_IPV6` (and give the subnet an `ip_cidr_range`). An in-use external IPv4

@@ -6,6 +6,10 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 7.0"
     }
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 5.0"
+    }
   }
 }
 
@@ -34,20 +38,6 @@ variable "zone" {
 variable "name" {
   type    = string
   default = "donut-games"
-}
-
-# Only Cloudflare's proxy may reach port 80. From https://www.cloudflare.com/ips-v6
-variable "cloudflare_ipv6_ranges" {
-  type = list(string)
-  default = [
-    "2400:cb00::/32",
-    "2606:4700::/32",
-    "2803:f800::/32",
-    "2405:b500::/32",
-    "2405:8100::/32",
-    "2a06:98c0::/29",
-    "2c0f:f248::/32",
-  ]
 }
 
 resource "google_project_service" "apis" {
@@ -115,17 +105,8 @@ resource "google_compute_subnetwork" "subnet" {
   ipv6_access_type = "EXTERNAL"
 }
 
-resource "google_compute_firewall" "http" {
-  name          = "${var.name}-http"
-  network       = google_compute_network.vpc.id
-  source_ranges = var.cloudflare_ipv6_ranges
-
-  allow {
-    protocol = "tcp"
-    ports    = ["80"]
-  }
-}
-
+# No rule for web traffic: it comes in through the Cloudflare Tunnel (cloudflare.tf), which the VM
+# opens outwards.
 resource "google_compute_firewall" "ssh" {
   name          = "${var.name}-ssh"
   network       = google_compute_network.vpc.id
@@ -137,8 +118,8 @@ resource "google_compute_firewall" "ssh" {
   }
 }
 
-# Reserved so the address survives stopping or recreating the VM and the Cloudflare record stays
-# valid. Static IPv6 addresses are free, unlike IPv4.
+# The VM needs an external address to reach the internet (registry, tunnel) and for SSH. Reserved
+# so it stays the same across restarts. Static IPv6 addresses are free, unlike IPv4.
 resource "google_compute_address" "server" {
   name               = var.name
   region             = var.region
@@ -173,17 +154,20 @@ resource "google_compute_instance" "server" {
   }
 
   # Set as metadata rather than metadata_startup_script, so editing it doesn't recreate the VM.
-  # It runs on every boot.
+  # It runs on every boot, so after changing it, reset the VM (see README).
   metadata = {
     enable-oslogin = "TRUE"
     startup-script = templatefile("${path.module}/startup.sh.tftpl", {
-      image = local.image
+      image        = local.image
+      tunnel_token = data.cloudflare_zero_trust_tunnel_cloudflared_token.server.token
+      # the Pages site, at the domain and at its pages.dev address
+      allowed_origins = "https://${var.domain},https://${cloudflare_pages_project.web.subdomain}"
     })
   }
 }
 
 output "ipv6_address" {
-  description = "Create an AAAA record pointing here, proxied through Cloudflare (that gives you HTTPS)"
+  description = "For SSH. Web traffic doesn't use it, it comes through the tunnel"
   value       = google_compute_address.server.address
 }
 

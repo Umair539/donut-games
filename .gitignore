@@ -15,3 +15,6 @@ __pycache__/
 infra/**/.terraform/
 infra/**/*.tfstate*
 infra/**/terraform.tfvars
+
+# env
+.env

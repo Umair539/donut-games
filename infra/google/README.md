@@ -89,9 +89,6 @@ e. In Cloudflare DNS, delete the **AAAA** record for `donutgames.co.uk`, then ru
    `terraform apply`. It puts the Pages site on the domain and removes the old port 80 firewall
    rule.
 
-f. Then the image no longer needs the pages: remove `COPY web` from the `Dockerfile` and `web/**`
-   from `gar.yml`'s paths, so changing the pages doesn't restart the server and end games.
-
 ## 6. Retire AWS
 
 Once the site works from Google: run `terraform destroy` in `infra/aws/` and delete that folder, then

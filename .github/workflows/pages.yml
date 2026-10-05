@@ -18,7 +18,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Point the pages at the game server, which is on another host in production
       - run: echo "const SERVER_HOST = \"$SERVER_HOST\";" > web/config.js

@@ -154,15 +154,16 @@ resource "google_compute_instance" "server" {
   }
 
   # Set as metadata rather than metadata_startup_script, so editing it doesn't recreate the VM.
-  # It runs on every boot, so after changing it, reset the VM (see README).
+  # It runs on every boot, so after changing it, reset the VM (see README). The \r are removed
+  # because a Windows checkout can give the file CRLF line endings, which bash can't run.
   metadata = {
     enable-oslogin = "TRUE"
-    startup-script = templatefile("${path.module}/startup.sh.tftpl", {
+    startup-script = replace(templatefile("${path.module}/startup.sh.tftpl", {
       image        = local.image
       tunnel_token = data.cloudflare_zero_trust_tunnel_cloudflared_token.server.token
       # the Pages site, at the domain and at its pages.dev address
       allowed_origins = "https://${var.domain},https://${cloudflare_pages_project.web.subdomain}"
-    })
+    }), "\r", "")
   }
 }
 

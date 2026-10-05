@@ -10,8 +10,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
+# The web pages aren't included, Cloudflare Pages serves them (infra/google/cloudflare.tf)
 COPY Server ./Server
-COPY web ./web
 
 RUN useradd --create-home app
 USER app

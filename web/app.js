@@ -9,6 +9,9 @@ const NAME_KEY = "donut-games-name"; // remembered in this browser so you don't 
 const MAX_RETRY_DELAY = 5000;
 const Games = window.Games || {};
 
+const SERVER = SERVER_HOST || location.host; // see config.js
+const SECURE = location.protocol === "https:";
+
 const $ = (id) => document.getElementById(id);
 
 let gamesInfo = []; // what the server can host, from /api/games
@@ -68,8 +71,7 @@ function connect() {
   if (socket) return;
   clearTimeout(retryTimer);
   closedByServer = false;
-  const scheme = location.protocol === "https:" ? "wss" : "ws";
-  const ws = new WebSocket(`${scheme}://${location.host}/ws`);
+  const ws = new WebSocket(`${SECURE ? "wss" : "ws"}://${SERVER}/ws`);
   socket = ws;
 
   ws.onopen = () => {
@@ -657,7 +659,7 @@ $("chat-form").addEventListener("submit", (e) => {
 
 async function init() {
   try {
-    gamesInfo = await (await fetch("/api/games")).json();
+    gamesInfo = await (await fetch(`${SECURE ? "https" : "http"}://${SERVER}/api/games`)).json();
   } catch {
     gamesInfo = [];
   }

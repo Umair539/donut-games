@@ -1,5 +1,6 @@
 """Connect Four played end to end over the real WebSocket endpoint."""
 import pytest
+from starlette.websockets import WebSocketDisconnect
 from wshelpers import act, create, join, recv, start
 
 from Server.core import app as server
@@ -27,6 +28,36 @@ def test_games_listing(client):
     assert keys == ["cols", "rows", "amount", "timer", "turn_seconds"]
     switch = games[1]
     assert (switch["min_players"], switch["max_players"]) == (2, 10)
+
+
+@pytest.fixture
+def pages_origin():
+    """Allow one outside site, as in production. Changed in place because the CORS middleware
+    holds the same list."""
+    server.ALLOWED_ORIGINS[:] = ["https://donutgames.co.uk"]
+    yield
+    server.ALLOWED_ORIGINS.clear()
+
+
+@pytest.mark.parametrize("origin", ["https://donutgames.co.uk", "http://testserver", None])
+def test_allowed_websocket_origins(client, pages_origin, origin):
+    headers = {"origin": origin} if origin else {}
+    with client.websocket_connect("/ws", headers=headers) as ws:
+        assert create(ws)["code"]
+
+
+def test_other_websocket_origin_refused(client, pages_origin):
+    with pytest.raises(WebSocketDisconnect) as refused:
+        with client.websocket_connect("/ws", headers={"origin": "https://evil.example"}):
+            pass
+    assert refused.value.code == 1008
+
+
+def test_games_listing_cors(client, pages_origin):
+    allowed = client.get("/api/games", headers={"origin": "https://donutgames.co.uk"})
+    assert allowed.headers["access-control-allow-origin"] == "https://donutgames.co.uk"
+    other = client.get("/api/games", headers={"origin": "https://evil.example"})
+    assert "access-control-allow-origin" not in other.headers
 
 
 def test_switch_over_websockets(client):

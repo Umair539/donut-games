@@ -8,6 +8,7 @@ from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, WebSocket
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from Server.core.base import GameError
@@ -17,6 +18,11 @@ from Server.games import GAMES
 WEB_DIR = Path(__file__).resolve().parent.parent.parent / "web"
 MAX_MESSAGE_SIZE = 1024  # characters, plenty for any valid message
 SWEEP_INTERVAL = 1  # seconds between checks for turn timers, expired seats and dead rooms
+
+# Sites allowed to use this server when the web pages are hosted elsewhere (Cloudflare Pages),
+# comma separated, e.g. "https://donutgames.co.uk". Unset means only the pages served from
+# here, which is how local play works.
+ALLOWED_ORIGINS = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
 
 rooms = RoomManager()
 
@@ -65,6 +71,8 @@ async def lifespan(app):
 
 
 app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+# Lets those sites read /api/games. Nothing here uses cookies, so no credentials.
+app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_methods=["GET"])
 
 
 class Connection:
@@ -159,8 +167,21 @@ def list_games():
     return [game.describe() for game in GAMES.values()]
 
 
+def origin_allowed(socket):
+    """Browsers don't apply CORS to WebSockets, so any site could connect without this check.
+    A page served from here sends its own address as the origin, which is always fine."""
+    origin = socket.headers.get("origin")
+    if origin is None or not ALLOWED_ORIGINS:
+        return True
+    host = socket.headers.get("host")
+    return origin in ALLOWED_ORIGINS or origin.split("://", 1)[-1] == host
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(socket: WebSocket):
+    if not origin_allowed(socket):
+        await socket.close(code=1008)
+        return
     await socket.accept()
     conn = Connection(socket)
     try:
@@ -198,8 +219,10 @@ class FreshStaticFiles(StaticFiles):
         return response
 
 
-# registered last so /ws, /healthz and /api take priority
-app.mount("/", FreshStaticFiles(directory=WEB_DIR, html=True), name="web")
+# Registered last so /ws, /healthz and /api take priority. Only when the web folder is there:
+# in production Cloudflare Pages serves the pages instead.
+if WEB_DIR.is_dir():
+    app.mount("/", FreshStaticFiles(directory=WEB_DIR, html=True), name="web")
 
 
 def lan_address():

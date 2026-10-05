@@ -1,6 +1,6 @@
 "use strict";
 
-/* Donut Switch. A game module for the shell in app.js (see games/connect4/connect4.js for
+/* Donut Cards. A game module for the shell in app.js (see games/connect4/connect4.js for
  * the interface). The server checks every move; the rules here only light up which cards
  * you can pick, so they must match Server/games/switch.py. */
 (() => {
@@ -159,6 +159,7 @@
 
     // players, in seat order starting with you
     const counts = new Map(g.counts.map((c) => [c.id, c.cards]));
+    const called = new Set(g.called || []);
     const order = ctx.players.slice().sort((a, b) => a.id - b.id);
     const mine = order.findIndex((p) => p.id === ctx.you);
     const rotated = order.slice(mine).concat(order.slice(0, mine));
@@ -179,6 +180,11 @@
         const count = el("span", "sw-count");
         count.append(cardImg(BACK, ""), String(counts.get(p.id) ?? 0));
         item.append(dot, name, count);
+        if (called.has(p.id)) {
+          const badge = el("span", "sw-called", "Cards!");
+          badge.title = "Called cards: could go out on their next go";
+          item.append(badge);
+        }
         return item;
       }),
     );
@@ -308,7 +314,7 @@
       "2: next player picks up 2 (stacks). Black jack: next player picks up 5–7 (a red jack cancels it). 8: next player misses a turn (stacks). Counter an attack with the same kind of card, or take it.",
       "King: reverses direction (an odd number of kings in one turn). Queen: cover it with the same suit or another queen, or pick up 1.",
       "You can't go out on a 2, 8, J, Q, K or ace: you pick up 1 instead.",
-      "Cards! Press the red Cards button during your turn when you think you can go out on your next one. If you play your last card without having called on your previous turn, you pick up 1 and the game goes on.",
+      "Cards! Press the red Cards button during the turn before the one you plan to go out on, then play your last cards on your next go. Everyone sees who has called. Go out without calling on your previous turn and you pick up 1 instead. Being skipped by an 8 doesn't use up your call.",
     ],
     preview,
     mount,

@@ -1,4 +1,4 @@
-/* Donut Switch. Colours come from the shared :root variables in style.css. */
+/* Donut Cards. Colours come from the shared :root variables in style.css. */
 
 /* a card table wants the whole window, not the shell's narrow column */
 main:has(.sw) {
@@ -278,6 +278,17 @@ main:has(.sw) .game-actions {
 
 .sw .sw-call:hover:not(:disabled) {
   background: #c22640;
+}
+
+/* a player who has called cards and may go out on their next go */
+.sw-called {
+  background: #e0334f;
+  color: #fff;
+  font-size: 0.75em;
+  font-weight: 700;
+  padding: 0.1em 0.45em;
+  border-radius: 999px;
+  white-space: nowrap;
 }
 
 /* hand */

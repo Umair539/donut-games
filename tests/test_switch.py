@@ -383,3 +383,45 @@ def test_two_starting_decks_force_play_when_the_third_comes_in():
     assert game.decks == 2 and not game.force
     draw(game)
     assert game.decks == 3 and game.force
+
+
+def test_everyone_sees_who_has_called():
+    game = setup(players=3, hands={1: ["5S", "6S"], 2: ["9C", "9D"], 3: ["9H", "4D"]},
+                 called=False)
+    assert game.view(2)["called"] == []
+    call(game)
+    assert all(game.view(p)["called"] == [1] for p in (1, 2, 3))
+    play(game, "5S")
+    assert all(game.view(p)["called"] == [1] for p in (1, 2, 3))  # still waiting to go out
+    draw(game)
+    draw(game)
+    play(game, "6S")
+    assert game.over and game.winner == 1
+
+
+def test_a_call_lapses_for_everyone_when_not_used():
+    game = setup(hands={1: ["5S", "6S", "7S"], 2: ["9C", "9D"]}, called=False)
+    call(game)
+    play(game, "5S")
+    draw(game)
+    play(game, "6S")  # didn't go out and didn't call again
+    assert game.view(2)["called"] == []
+
+
+def test_being_skipped_doesnt_use_up_a_call():
+    game = setup(hands={1: ["5S", "6S"], 2: ["5D", "8S"]}, called=False)
+    call(game)
+    play(game, "5S")
+    play(game, "8S")  # player 1 misses a turn
+    draw(game)
+    assert game.turn == 2 and game.view(2)["called"] == [1]
+    draw(game)
+    play(game, "6S")
+    assert game.over and game.winner == 1
+
+
+def test_calling_and_going_out_on_the_same_turn_picks_up_one():
+    game = setup(hands={1: ["5S"], 2: ["9C"]}, pile=["7D"], called=False)
+    call(game)
+    play(game, "5S")
+    assert not game.over and game.hands[1] == ["7D"]

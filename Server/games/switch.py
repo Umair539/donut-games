@@ -63,7 +63,7 @@ def connects(prev, card):
 
 class Switch(BaseGame):
     name = "switch"
-    title = "Donut Switch"
+    title = "Donut Cards"
     description = "Uno with a normal deck. Empty your hand first."
     min_players = 2
     max_players = 10
@@ -175,6 +175,7 @@ class Switch(BaseGame):
             "suit": self.suit,
             "pending": dict(self.pending) if self.pending else None,
             "calling": self.calling,
+            "called": sorted(self._called_now()),
             "turn": self.turn,
             "direction": self.direction,
             "pile": len(self.pile),
@@ -278,7 +279,9 @@ class Switch(BaseGame):
             left = pending["count"] - 1  # the rest of the skips move on to the next player
             self.pending = {"kind": SKIP, "count": left} if left else None
             self._log(player, "missed a turn")
-        elif pending:
+            self._advance(missed=True)
+            return
+        if pending:
             got = self._draw(player, pending["count"])
             self.pending = None
             self._log(player, f"picked up {got}")
@@ -337,11 +340,21 @@ class Switch(BaseGame):
         """Players still in the round: not out and not left."""
         return [p for p in self.hands if p not in self.gone and p not in self.places]
 
-    def _advance(self):
+    def _called_now(self):
+        """Players who have called cards and can still go out on it: on their last turn, or
+        during this one. Everyone sees this, so they can try to stop them."""
+        called = {p for p in self.called if p in self._active()}
+        if self.calling:
+            called.add(self.turn)
+        return called
+
+    def _advance(self, missed=False):
+        """Pass the turn on. A missed turn (from an 8) isn't a go, so a call made on the
+        turn before it still counts for the player's next real go."""
         player = self.turn
         if self.calling:
             self.called.add(player)
-        else:
+        elif not missed:
             self.called.discard(player)
         self.calling = False
         for _ in range(self.num_players):

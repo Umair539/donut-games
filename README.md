@@ -1,7 +1,7 @@
 # Donut Games
 Donut-themed multiplayer games played in the browser. The host picks a game, chooses its settings and gets a 6-character code (or invite link) to share. Everyone waits in a lobby, and the host starts the game when they are ready. The Python server is the source of truth for every move and talks to the browsers over WebSockets.
 
-The server and the page around each game are shared, so a new game only has to provide its rules and its board. There are two games so far: Connect Donut (Connect Four) and Donut Switch (an Uno-style game with a normal deck).
+The server and the page around each game are shared, so a new game only has to provide its rules and its board. There are two games so far: Connect Donut (Connect Four) and Donut Cards (an Uno-style game with a normal deck).
 
 ---
 
@@ -14,7 +14,7 @@ The server and the page around each game are shared, so a new game only has to p
 
 ### Server/games: one file per game
 * **`connect4.py`**: Connect Donut rules, move validation and win checks.
-* **`switch.py`**: Donut Switch rules: dealing, power cards, drawing and adding decks.
+* **`switch.py`**: Donut Cards rules: dealing, power cards, drawing and adding decks.
 * **`__init__.py`**: The list of games that can be hosted.
 
 ### web
@@ -106,7 +106,7 @@ The server replies with `joined` (your seat and reconnect token), `state`, `erro
 
 ---
 
-## Donut Switch rules
+## Donut Cards rules
 
 2 to 10 players. Get rid of all your cards to win. 6 or more players always use 2 decks, and smaller games can choose 2. Who goes first is random each round.
 
@@ -126,6 +126,7 @@ On your turn you either **play** or **draw**. Your first card must match the top
 * An attack (2s, 8s or black jacks) only reaches the next player if it is at the end of your turn. If you answer one and then carry on with other cards, it stops there.
 * Aces can't be used to answer an attack.
 * You can't go out on a power card (A, 2, 8, J, Q, K). If you try, you pick up 1.
+* **Cards!** Press the Cards button on the turn before the one you plan to go out on, then play all your remaining cards on your next go. Everyone sees a *Cards!* badge next to your name until then, so they can try to stop you. If you go out without having called on your previous turn, you pick up 1 instead. Calling and going out on the same turn doesn't count. Being skipped by an 8 doesn't use up your call.
 * If you draw instead of playing, you take 1 card and your turn ends. With *Must play if you can* switched on, you can only draw when nothing in your hand can be played.
 * When the pile runs out, the discards are shuffled back in. If there are none, a new deck is added, up to 3. Once the third deck is in, *Must play if you can* switches on for the rest of the round.
 

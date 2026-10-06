@@ -1,5 +1,10 @@
 # Deploying to Lightsail (London)
 
+**Retired:** this setup has been destroyed, and the live server is on Google Cloud
+(`infra/google/`). This is kept for reference only. The update script in `user_data.sh.tftpl` was
+kept in step with the Google one (stop instead of kill, a volume for saved rooms), but none of it
+has been tried here.
+
 Run these in order. Everything is in this folder; run the `terraform` commands from here.
 
 You need: Terraform, AWS CLI with credentials (`aws sts get-caller-identity` should work), and the code pushed to GitHub.
@@ -64,7 +69,10 @@ Give the first boot a few minutes to install Docker and pull the image, then ope
 ## Deploying changes later
 
 Push to `main`. The workflow pushes a new `:latest`, and the server picks it up within 5 minutes
-(a cron job runs `/opt/donut-games/update.sh`). Games in progress end when it restarts.
+(a cron job runs `/opt/donut-games/update.sh`). The container saves its rooms when it stops and
+loads them again, so games carry on through the restart. Lightsail only runs the user data on first
+boot, though, so an instance made before this change keeps the old update script, which kills the
+container and loses games.
 
 ## If something doesn't work
 

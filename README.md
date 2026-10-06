@@ -24,7 +24,7 @@ The server and the page around each game are shared, so a new game only has to p
 * **`games/switch/cards/`**: Placeholder card images, to be replaced with donut-themed ones.
 
 ### tests
-* Tests for the games, the room framework (using a made-up 2-4 player game) and the server.
+* Tests for the games, the room framework (using a made-up 2-4 player game), the server, and saving and restoring rooms across a restart.
 
 ---
 
@@ -43,7 +43,7 @@ The server and the page around each game are shared, so a new game only has to p
     ```
 3. Open http://localhost:8000 in two browser tabs (or two devices on the same network), host a game in one and join with the code in the other.
 
-The server listens on `0.0.0.0:8000` by default. Set the `HOST` and `PORT` environment variables to change this.
+The server listens on `0.0.0.0:8000` by default. Set the `HOST` and `PORT` environment variables to change this. Rooms are only kept in memory unless `SNAPSHOT_PATH` is set (see below).
 
 ## Tests and linting
 ```bash
@@ -54,27 +54,16 @@ flake8 is set to a 100 character line limit in **`.flake8`**.
 
 ---
 
-## Deploying on AWS Lightsail
+## Deploying
 
-The **`Dockerfile`** runs the server and web pages as one container on a Lightsail container service (about $7/month, `nano`). Lightsail gives it an `https://...cs.amazonaws.com` address, and WebSockets work over it, so no domain is needed. **`infra/aws/`** is the Terraform.
+The game server runs as one Docker container on a free-tier Google Cloud VM, reached at `server.donutgames.co.uk` through a Cloudflare Tunnel. The web pages are on Cloudflare Pages at `donutgames.co.uk`. **`infra/google/`** is the Terraform, and its [README](infra/google/README.md) covers setting it up and fixing it.
 
-Needs Terraform, Docker, the AWS CLI configured with credentials, and the [Lightsail plugin](https://docs.aws.amazon.com/lightsail/latest/userguide/amazon-lightsail-install-software.html) (`lightsailctl`) for pushing images.
+* **Code:** push to `main`. GitHub Actions runs the tests, builds the image and deploys it within seconds (`gar.yml`), and changes to `web/` go to Pages (`pages.yml`). Games in progress carry on through a deploy, see below.
+* **The VM's startup script** (`infra/google/startup.sh.tftpl`) isn't deployed by GitHub: run `terraform apply` in `infra/google`, then stop and start the VM so it runs the new script.
 
-```bash
-cd infra
-terraform init
-terraform apply                      # 1. creates the empty service
-cd ..
-docker build -t donut-games .
-aws lightsail push-container-image --region us-east-1 --service-name donut-games --label app --image donut-games:latest
-                                     # 2. prints an image name like :donut-games.app.1
-cd infra
-terraform apply -var image=:donut-games.app.1    # 3. runs it; the URL is printed
-```
+Run **one instance only**. Rooms live in the memory of that one process.
 
-For new code: rebuild, push again, and apply with the new image name.
-
-Run **one instance only**. Rooms live in the memory of that one process, and a restart or redeploy ends games in progress.
+`infra/aws/` is the earlier AWS Lightsail setup. Its resources have been destroyed, so it's only kept for reference.
 
 ---
 
@@ -91,7 +80,15 @@ Names are optional. They are tidied up (no control characters, single spaces, at
 
 If a player disconnects they have 60 seconds to come back before their seat is lost. Rooms are removed as soon as everyone has left, or after 10 minutes without activity in the lobby (15 once the game has started).
 
-Rooms are kept in memory. When `SNAPSHOT_PATH` is set (the Docker image sets it to `/data/rooms.json`), the server also saves them there every 30 seconds and when it shuts down, and loads them when it starts. A deploy then only shows players a few seconds of "reconnecting": their browsers rejoin with their tokens, everyone gets 2 minutes to come back instead of 1, and the player whose turn it is gets a fresh turn timer. For this to work the container has to be stopped rather than killed (`docker stop`, which lets it save) and `/data` has to be a volume, which the deploy scripts in `infra/` do. Saved rooms that don't fit the new code, because a game's saved state changed shape, are dropped instead of loaded.
+### Surviving a restart
+
+Rooms are kept in memory. When `SNAPSHOT_PATH` is set (the Docker image sets it to `/data/rooms.json`), the server also saves them there every 30 seconds and when it shuts down, and loads them when it starts. A deploy then only shows players a few seconds of "reconnecting":
+
+* Their browsers rejoin by themselves with their reconnect tokens.
+* Everyone gets 2 minutes to come back instead of 1.
+* The turn timer is paused until everyone still in the game is back, then the player whose turn it is gets a full turn.
+
+For this to work the container has to be stopped rather than killed (`docker stop`, which lets it save), and `/data` has to be a volume. The deploy script on the VM does both. If the server crashes instead, rooms come back from the last 30-second save. Saved rooms that don't fit the new code, because a game's saved state changed shape, are dropped instead of loaded.
 
 ### Messages
 All messages are JSON over a single WebSocket at `/ws`.
@@ -132,7 +129,7 @@ On your turn you either **play** or **draw**. Your first card must match the top
 * You can't go out on a power card (A, 2, 8, J, Q, K). If you try, you pick up 1.
 * **Cards!** Press the Cards button on the turn before the one you plan to go out on, then play all your remaining cards on your next go. Everyone sees a *Cards!* badge next to your name until then, so they can try to stop you. If you go out without having called on your previous turn, you pick up 1 instead. Calling and going out on the same turn doesn't count. Being skipped by an 8 doesn't use up your call.
 * If you draw instead of playing, you take 1 card and your turn ends. With *Must play if you can* switched on, you can only draw when nothing in your hand can be played.
-* When the pile runs out, the discards are shuffled back in. If there are none, a new deck is added, up to 3. Once the third deck is in, *Must play if you can* switches on for the rest of the round.
+* When the pile runs out, the discards are shuffled back in. If there are none, a new deck is added, up to 3. The first time a deck is added, *Must play if you can* switches on for the rest of the round, since it means everyone has been drawing instead of playing.
 
 ---
 

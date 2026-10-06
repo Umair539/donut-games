@@ -1,6 +1,6 @@
 # Deploying to Google Cloud (free-tier e2-micro)
 
-Run these in order from this folder. The AWS setup in `infra/aws/` stays live until step 6.
+This is the live setup. The steps below are how it was built, in order, from this folder. For day-to-day changes see [Changing the startup script](#changing-the-startup-script) and [If something doesn't work](#if-something-doesnt-work).
 
 You need: Terraform, the gcloud CLI logged in (`gcloud auth application-default login`), a
 project with billing linked (the free tier still needs a billing account), and a Cloudflare API
@@ -14,7 +14,9 @@ Get-Content ..\..\.env | ForEach-Object { $n,$v = $_ -split '=',2; Set-Item "env
 How it fits together: the web pages are on Cloudflare Pages at `donutgames.co.uk`, deployed by
 `.github/workflows/pages.yml`. The game server is the e2-micro, reached at
 `server.donutgames.co.uk` through a Cloudflare Tunnel, which the VM opens outwards. So the VM
-has no open web port, and only accepts WebSockets from the Pages site.
+has no open web port, and only accepts WebSockets from the Pages site. The container saves its
+rooms to the `donut-data` Docker volume when it stops, so games carry on through a deploy (see
+the main README).
 
 Put your project ID in `terraform.tfvars` (gitignored):
 
@@ -43,8 +45,7 @@ are secret.
 ## 3. Push the first image
 
 Push to `main` or run **Build and push to Google Artifact Registry** by hand
-(`.github/workflows/gar.yml`). It runs next to the ECR workflow and fails until the three
-variables above are set.
+(`.github/workflows/gar.yml`). It fails until the three variables above are set.
 
 ## 4. Create the server, tunnel and Pages site
 
@@ -121,7 +122,24 @@ case a deploy didn't happen. Setup (`deploy.tf`):
 ## 6. Retire AWS
 
 Once the site works from Google: run `terraform destroy` in `infra/aws/` and delete that folder, then
-delete `.github/workflows/ecr.yml` and `AWS_ROLE_ARN` / `ECR_PUBLIC_URI` from GitHub.
+delete `.github/workflows/ecr.yml` and `AWS_ROLE_ARN` / `ECR_PUBLIC_URI` from GitHub. (The
+`terraform destroy` is done, but the folder and `ecr.yml` are still in the repo.)
+
+## Changing the startup script
+
+GitHub only deploys new images. The startup script (`startup.sh.tftpl`, which also writes
+`update.sh`, the deploy step) only reaches the VM through Terraform, and only runs on boot:
+
+```bash
+terraform plan    # should only change the VM's startup-script, in place
+terraform apply
+gcloud compute instances stop donut-games --zone us-east1-b
+gcloud compute instances start donut-games --zone us-east1-b
+```
+
+Use stop and start rather than `reset`. Stopping shuts the VM down cleanly, so the container saves
+its rooms first. `reset` is a power cut, and games come back from the last 30-second save. The VM
+is back in about a minute, within the 2 minutes players have to reconnect after a restart.
 
 ## Staying free
 
@@ -142,8 +160,10 @@ new deploy, and these show what's happening without logging in:
 - Tunnel: **Zero Trust > Networks > Tunnels** in Cloudflare shows whether the VM is connected
 - Boot log, including the startup script, cloudflared and the hourly check's output on boot:
   `gcloud compute instances get-serial-port-output donut-games --zone us-east1-b`
-- Last resort: `gcloud compute instances reset donut-games --zone us-east1-b` reruns the startup
-  script, which reinstalls anything missing and restarts the container.
+- Last resort: stop and start the VM (see [Changing the startup script](#changing-the-startup-script)).
+  That reruns the startup script, which reinstalls anything missing and restarts the container.
+  If the VM is stuck and won't stop, `gcloud compute instances reset donut-games --zone us-east1-b`
+  forces it.
 
 If the server can't reach Docker's install site or the registry over IPv6, change both
 `stack_type`s to `IPV4_IPV6` (and give the subnet an `ip_cidr_range`). An in-use external IPv4

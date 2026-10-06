@@ -6,6 +6,7 @@ on:
     paths:
       - web/**
       - .github/workflows/pages.yml
+      - .github/workflows/ui-tests.yml
   workflow_dispatch:
 
 permissions:
@@ -15,7 +16,11 @@ env:
   SERVER_HOST: server.donutgames.co.uk
 
 jobs:
+  ui:
+    uses: ./.github/workflows/ui-tests.yml
+
   deploy:
+    needs: ui
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

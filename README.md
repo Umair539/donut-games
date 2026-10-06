@@ -25,6 +25,7 @@ The server and the page around each game are shared, so a new game only has to p
 
 ### tests
 * Tests for the games, the room framework (using a made-up 2-4 player game), the server, and saving and restoring rooms across a restart.
+* **`ui/`**: browser tests of the pages, see below.
 
 ---
 
@@ -51,6 +52,14 @@ pytest
 flake8
 ```
 flake8 is set to a 100 character line limit in **`.flake8`**.
+
+The browser tests in **`tests/ui/`** drive the real pages in Chromium, with each player in their own browser, against a real server: hosting, the lobby, both games, leaving, rematches, chat, refreshing, and a server restart mid-game. They're skipped unless their extra packages are installed:
+```bash
+pip install -r requirements-ui.txt
+playwright install chromium
+pytest tests/ui                  # add --headed to watch
+```
+In GitHub Actions they run before both deploys (**`.github/workflows/ui-tests.yml`**).
 
 ---
 

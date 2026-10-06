@@ -8,6 +8,7 @@ on:
       - Dockerfile
       - requirements.txt
       - .github/workflows/gar.yml
+      - .github/workflows/ui-tests.yml
   workflow_dispatch:
 
 permissions:
@@ -27,8 +28,11 @@ jobs:
       - run: flake8 Server tests
       - run: pytest -q
 
+  ui:
+    uses: ./.github/workflows/ui-tests.yml
+
   push:
-    needs: test
+    needs: [test, ui]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

@@ -1,0 +1,3 @@
+# Browser tests (tests/ui), on top of requirements.txt. Kept separate so the server image
+# doesn't carry them. After installing, also run: playwright install chromium
+pytest-playwright==0.9.0

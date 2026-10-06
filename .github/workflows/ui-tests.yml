@@ -1,0 +1,23 @@
+name: Browser tests
+
+# The pages in Chromium against the real server (tests/ui). Both deploys wait for this:
+# gar.yml before the server goes out and pages.yml before the web pages do.
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt -r requirements-ui.txt
+      - run: python -m playwright install --with-deps chromium
+      - run: pytest -q tests/ui

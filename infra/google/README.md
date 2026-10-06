@@ -122,8 +122,8 @@ case a deploy didn't happen. Setup (`deploy.tf`):
 ## 6. Shut down AWS
 
 The server ran on AWS Lightsail before this. Once the site works from Google, run
-`terraform destroy` in `infra/aws/`. That has been done. The folder and `ecr.yml` stay in the repo
-(the workflow only runs by hand), so the server can move back to AWS. See `infra/aws/README.md`.
+`terraform destroy` in `infra/aws/`. That has been done. The folder and `ecr.yml` (manual runs
+only) are kept in the repo for completeness.
 
 ## Changing the startup script
 

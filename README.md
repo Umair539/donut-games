@@ -63,7 +63,7 @@ The game server runs as one Docker container on a free-tier Google Cloud VM, rea
 
 Run **one instance only**. Rooms live in the memory of that one process.
 
-The server has been on both clouds. It started on AWS Lightsail and moved to Google Cloud. The AWS resources are torn down, but **`infra/aws/`** and its workflow (`ecr.yml`, manual runs only for now) are kept so it can move back. Its [README](infra/aws/README.md) says what to change.
+The server has been on both clouds: it started on AWS Lightsail and moved to Google Cloud. The AWS setup is retired and its resources are destroyed. **`infra/aws/`** and its workflow (`ecr.yml`, manual runs only) are kept for completeness, as a record of it.
 
 ---
 

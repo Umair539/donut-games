@@ -1,9 +1,16 @@
 # Deploying to Lightsail (London)
 
-**Retired:** this setup has been destroyed, and the live server is on Google Cloud
-(`infra/google/`). This is kept for reference only. The update script in `user_data.sh.tftpl` was
-kept in step with the Google one (stop instead of kill, a volume for saved rooms), but none of it
-has been tried here.
+**Not in use right now.** The server ran here first, then moved to Google Cloud
+(`infra/google/`). The AWS resources have been destroyed, but this folder and `ecr.yml` are kept so
+it can move back. Following the steps below rebuilds it. To move back:
+
+- `ecr.yml` only runs by hand while Google is live. Add a `push` trigger to it again, like
+  `gar.yml` has, and take it off `gar.yml`.
+- Point the domain here instead of at the Google tunnel (step 5). If the server's address changes
+  from `server.donutgames.co.uk`, change `SERVER_HOST` in `.github/workflows/pages.yml`, which
+  writes it into the web pages.
+- The update script in `user_data.sh.tftpl` has been kept in step with the Google one (stop instead
+  of kill, a volume for saved rooms), but it hasn't been run on AWS yet.
 
 Run these in order. Everything is in this folder; run the `terraform` commands from here.
 
@@ -39,8 +46,8 @@ In the repo on GitHub: **Settings > Secrets and variables > Actions**.
 
 The workflow is `.github/workflows/ecr.yml`. It has to be committed and pushed to `main`.
 
-- Either push anything to `main`, or
-- go to the **Actions** tab, choose **Build and push to ECR**, and click **Run workflow**.
+- Either push anything to `main` (once the workflow has its `push` trigger back, see the top), or
+- go to the **Actions** tab, choose **Build and push to ECR (AWS, manual only)**, and click **Run workflow**.
 
 It runs the tests, then builds the image and pushes it as `:latest`. Wait for it to go green. Check
 the image is there: AWS console > ECR > Public registries > donut-games (region us-east-1).
@@ -68,7 +75,7 @@ Give the first boot a few minutes to install Docker and pull the image, then ope
 
 ## Deploying changes later
 
-Push to `main`. The workflow pushes a new `:latest`, and the server picks it up within 5 minutes
+Push to `main` (with the `push` trigger back on `ecr.yml`). The workflow pushes a new `:latest`, and the server picks it up within 5 minutes
 (a cron job runs `/opt/donut-games/update.sh`). The container saves its rooms when it stops and
 loads them again, so games carry on through the restart. Lightsail only runs the user data on first
 boot, though, so an instance made before this change keeps the old update script, which kills the

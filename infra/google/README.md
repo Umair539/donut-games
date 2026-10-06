@@ -119,11 +119,11 @@ case a deploy didn't happen. Setup (`deploy.tf`):
    | Secret | `CF_ACCESS_CLIENT_SECRET` | `terraform output -raw cf_access_client_secret` |
    | Variable | `SSH_KNOWN_HOSTS` | the line in `kh` from step 3 |
 
-## 6. Retire AWS
+## 6. Shut down AWS
 
-Once the site works from Google: run `terraform destroy` in `infra/aws/` and delete that folder, then
-delete `.github/workflows/ecr.yml` and `AWS_ROLE_ARN` / `ECR_PUBLIC_URI` from GitHub. (The
-`terraform destroy` is done, but the folder and `ecr.yml` are still in the repo.)
+The server ran on AWS Lightsail before this. Once the site works from Google, run
+`terraform destroy` in `infra/aws/`. That has been done. The folder and `ecr.yml` stay in the repo
+(the workflow only runs by hand), so the server can move back to AWS. See `infra/aws/README.md`.
 
 ## Changing the startup script
 

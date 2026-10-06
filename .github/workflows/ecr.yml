@@ -1,6 +1,7 @@
-name: Build and push to ECR (retired, manual only)
+name: Build and push to ECR (AWS, manual only)
 
-# Retired: the site runs on Google Cloud now (see gar.yml). Manual runs only.
+# Not in use: the site runs on Google Cloud now (see gar.yml). Kept for moving back to AWS
+# (infra/aws/README.md), when this gets a push trigger again. Until then, manual runs only.
 on:
   workflow_dispatch:
 

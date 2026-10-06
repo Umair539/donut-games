@@ -18,6 +18,11 @@ from Server.games import GAMES
 WEB_DIR = Path(__file__).resolve().parent.parent.parent / "web"
 MAX_MESSAGE_SIZE = 1024  # characters, plenty for any valid message
 SWEEP_INTERVAL = 1  # seconds between checks for turn timers, expired seats and dead rooms
+SAVE_INTERVAL = 30  # seconds between saves, which only matter if the server crashes
+
+# Where rooms are saved so a restart (a deploy) doesn't end everyone's game. Unset means rooms
+# only live in memory, which is how local play and the tests work.
+SNAPSHOT_PATH = os.environ.get("SNAPSHOT_PATH")
 
 # Sites allowed to use this server when the web pages are hosted elsewhere (Cloudflare Pages),
 # comma separated, e.g. "https://donutgames.co.uk". Unset means only the pages served from
@@ -53,21 +58,38 @@ async def shut_down(room, message):
         await close(seat.socket, message)
 
 
+def save_rooms():
+    if SNAPSHOT_PATH:
+        try:
+            rooms.save(SNAPSHOT_PATH)
+        except OSError as e:
+            print(f"Could not save rooms to {SNAPSHOT_PATH}: {e!r}")
+
+
 async def sweep_forever():
+    last_save = time.monotonic()
     while True:
         await asyncio.sleep(SWEEP_INTERVAL)
-        changed, removed = rooms.sweep(time.monotonic())
+        now = time.monotonic()
+        changed, removed = rooms.sweep(now)
         for room in changed:
             await broadcast(room)
         for room in removed:
             await shut_down(room, room.closed or "Room closed after inactivity")
+        if now - last_save >= SAVE_INTERVAL:
+            save_rooms()
+            last_save = now
 
 
 @asynccontextmanager
 async def lifespan(app):
+    if SNAPSHOT_PATH:
+        count = rooms.load(SNAPSHOT_PATH, time.monotonic())
+        print(f"Restored {count} room(s) from {SNAPSHOT_PATH}")
     task = asyncio.create_task(sweep_forever())
     yield
     task.cancel()
+    save_rooms()  # uvicorn has closed every connection by now, so nothing changes after this
 
 
 app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
@@ -243,7 +265,8 @@ def run():
     lan = lan_address() if host == "0.0.0.0" else None
     if lan:
         print(f"Other devices on your network can use http://{lan}:{port}")
-    uvicorn.run(app, host=host, port=port, ws_max_size=16 * 1024)
+    # On shutdown open games are saved after the connections close, so don't wait long for them
+    uvicorn.run(app, host=host, port=port, ws_max_size=16 * 1024, timeout_graceful_shutdown=5)
 
 
 if __name__ == "__main__":

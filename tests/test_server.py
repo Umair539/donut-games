@@ -315,12 +315,45 @@ def test_leaving_the_lobby_frees_the_seat(client):
         assert join(p3, code)["player"] == 2
 
 
-def test_host_leaving_the_lobby_closes_the_room(client):
-    with client.websocket_connect("/ws") as p1, client.websocket_connect("/ws") as p2:
+def test_host_leaving_the_lobby_hands_it_over(client):
+    with (
+        client.websocket_connect("/ws") as p1,
+        client.websocket_connect("/ws") as p2,
+        client.websocket_connect("/ws") as p3,
+    ):
         code = lobby(p1, p2)
         p1.send_json({"type": "leave"})
-        assert recv(p2, "closed")["message"] == "The host left the game"
-        assert code not in server.rooms.rooms
+        state = recv(p2, "state")
+        assert state["host"] == 2 and state["you"] == 2
+        assert code in server.rooms.rooms
+        assert join(p3, code)["player"] == 1  # the free seat can be taken again
+        recv(p2, "state")
+        p3.send_json({"type": "start"})
+        assert recv(p3, "error")["message"] == "Only the host can start the game"
+        p2.send_json({"type": "start"})  # the new host can
+        assert recv(p2, "state")["phase"] == "playing"
+        assert recv(p3, "state")["host"] == 2
+
+
+def test_last_player_leaving_removes_the_room_at_once(client):
+    with client.websocket_connect("/ws") as p1, client.websocket_connect("/ws") as p2:
+        code = lobby(p1, p2)
+        p2.send_json({"type": "leave"})
+        recv(p1, "state")
+        p1.send_json({"type": "leave"})
+        p1.send_json({"type": "join", "code": code})  # in order, so the leave is done
+        assert recv(p1, "error")["message"] == "Room not found"
+
+
+def test_everyone_leaving_a_game_removes_it_at_once(client):
+    with client.websocket_connect("/ws") as p1, client.websocket_connect("/ws") as p2:
+        code = lobby(p1, p2)
+        start(p1, p2)
+        p1.send_json({"type": "leave"})
+        recv(p2, "state")
+        p2.send_json({"type": "leave"})
+        p2.send_json({"type": "join", "code": code})
+        assert recv(p2, "error")["message"] == "Room not found"
 
 
 def test_leaving_mid_game(client):

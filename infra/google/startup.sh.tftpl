@@ -59,9 +59,12 @@ docker pull -q "$image" > /dev/null
 latest=$(docker image inspect -f '{{.Id}}' "$image")
 running=$(docker inspect -f '{{.Image}}' donut-games 2>/dev/null || true)
 if [ "$latest" != "$running" ]; then
-  docker rm -f donut-games 2> /dev/null || true
+  # stop (not rm -f) so the server gets to save its rooms to the volume, and the new one
+  # picks them up: players see a few seconds of "reconnecting" instead of losing their game
+  docker stop -t 30 donut-games > /dev/null 2>&1 || true
+  docker rm donut-games > /dev/null 2>&1 || true
   docker run -d --name donut-games --restart unless-stopped -p 127.0.0.1:8000:8000 \
-    -e ALLOWED_ORIGINS='${allowed_origins}' "$image" > /dev/null
+    -v donut-data:/data -e ALLOWED_ORIGINS='${allowed_origins}' "$image" > /dev/null
   docker image prune -f > /dev/null
   echo "$(date -u +%FT%TZ) deployed $latest"
 else
@@ -92,6 +95,8 @@ swapon /swapfile 2> /dev/null || true
 echo '0 * * * * root /opt/donut-games/update.sh >> /var/log/donut-update.log 2>&1' > /etc/cron.d/donut-games
 
 # update.sh only replaces the container when the image changes, so remove it here too: a changed
-# startup script (new docker run options) then takes effect on the next boot.
-docker rm -f donut-games 2> /dev/null || true
+# startup script (new docker run options) then takes effect on the next boot. Stopped first, so
+# its rooms are saved.
+docker stop -t 30 donut-games > /dev/null 2>&1 || true
+docker rm donut-games > /dev/null 2>&1 || true
 /opt/donut-games/update.sh || true

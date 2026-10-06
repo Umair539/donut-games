@@ -17,8 +17,10 @@ docker pull -q "$image" > /dev/null
 latest=$(docker image inspect -f '{{.Id}}' "$image")
 running=$(docker inspect -f '{{.Image}}' donut-games 2>/dev/null || true)
 if [ "$latest" != "$running" ]; then
-  docker rm -f donut-games 2> /dev/null || true
-  docker run -d --name donut-games --restart unless-stopped -p 80:8000 "$image"
+  # stop (not rm -f) so the server saves its rooms to the volume for the new one to load
+  docker stop -t 30 donut-games > /dev/null 2>&1 || true
+  docker rm donut-games > /dev/null 2>&1 || true
+  docker run -d --name donut-games --restart unless-stopped -p 80:8000 -v donut-data:/data "$image"
   docker image prune -f
 fi
 UPDATE

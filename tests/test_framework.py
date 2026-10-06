@@ -8,10 +8,12 @@ from contextlib import ExitStack
 import pytest
 from wshelpers import act, create, join, recv, start
 
+from Server.core import app as server
 from Server.core.base import BaseGame, GameError
 from Server.core.rooms import (
-    IDLE_TIMEOUT,
+    GAME_IDLE_TIMEOUT,
     LEFT,
+    LOBBY_IDLE_TIMEOUT,
     RECONNECT_GRACE,
     Room,
     RoomError,
@@ -210,23 +212,71 @@ def test_game_ends_when_too_few_players_remain(client):
         assert recv(a, "error")["message"] == "Not enough players left"
 
 
-def test_no_rematch_once_a_player_has_left(client):
+def finished_game(clients, target=1):
+    """Everyone in a lobby, the game started and won by player 1 straight away."""
+    code = lobby_of(clients, target=target)
+    clients[0].send_json({"type": "start"})
+    for ws in clients:
+        recv(ws, "state")
+    act(clients[0])
+    for ws in clients:
+        assert recv(ws, "state")["over"] is True
+    return code
+
+
+def test_rematch_drops_whoever_left(client):
     with (
         client.websocket_connect("/ws") as a,
         client.websocket_connect("/ws") as b,
         client.websocket_connect("/ws") as c,
     ):
-        lobby_of([a, b, c], target=1)
-        a.send_json({"type": "start"})
-        for ws in (a, b, c):
-            recv(ws, "state")
-        act(a)  # a wins immediately
-        for ws in (a, b, c):
-            assert recv(ws, "state")["over"] is True
-        c.send_json({"type": "leave"})
+        code = finished_game([a, b, c])
+        b.send_json({"type": "leave"})
         recv(a, "state")
+        recv(c, "state")
         a.send_json({"type": "rematch"})
-        assert recv(a, "error")["message"] == "A player has left"
+        recv(a, "state")
+        recv(c, "state")
+        c.send_json({"type": "rematch"})
+        sa, sc = recv(a, "state"), recv(c, "state")
+        assert sa["over"] is False
+        assert [p["id"] for p in sa["players"]] == [1, 2]  # b is gone, c moved up
+        assert (sa["you"], sc["you"]) == (1, 2)
+        assert sc["data"]["secret"] == 200
+        assert sa["rematch"] == []
+        assert server.rooms.get(code).game.players == 2  # a fresh game, dealt for two
+        assert server.rooms.get(code).game.gone == set()
+
+
+def test_rematch_starts_when_the_last_holdout_leaves(client):
+    with (
+        client.websocket_connect("/ws") as a,
+        client.websocket_connect("/ws") as b,
+        client.websocket_connect("/ws") as c,
+    ):
+        finished_game([a, b, c])
+        for ws in (a, b):
+            ws.send_json({"type": "rematch"})
+            for other in (a, b, c):
+                recv(other, "state")
+        c.send_json({"type": "leave"})  # everyone still here has already agreed
+        state = recv(a, "state")
+        assert state["over"] is False
+        assert [p["name"] for p in state["players"]] == ["Player", "Player 2"]
+
+
+def test_no_rematch_without_enough_players(client):
+    with (
+        client.websocket_connect("/ws") as a,
+        client.websocket_connect("/ws") as b,
+        client.websocket_connect("/ws") as c,
+    ):
+        finished_game([a, b, c])
+        for ws in (b, c):
+            ws.send_json({"type": "leave"})
+            recv(a, "state")
+        a.send_json({"type": "rematch"})
+        assert recv(a, "error")["message"] == "Not enough players left"
 
 
 def test_rematch_needs_every_player(client):
@@ -273,12 +323,59 @@ def test_lobby_seat_is_freed_after_the_grace_period():
     assert room.closed is None
 
 
-def test_host_going_away_closes_the_lobby():
-    room, (host, guest) = new_room()
+def test_host_going_away_hands_the_lobby_to_the_next_player():
+    room, (host, guest, third) = new_room(players=3)
     room.disconnect(host, host.socket, now=10)
     assert room.expire_seats(now=11 + RECONNECT_GRACE)
-    assert room.closed == "The host left the game"
-    assert room.is_dead(now=11 + RECONNECT_GRACE)
+    assert room.closed is None
+    assert room.host is guest
+    assert not room.is_dead(now=11 + RECONNECT_GRACE)
+    # the new host can start, and the seats are renumbered from 1
+    room.start(guest, now=12)
+    assert (guest.player, third.player) == (1, 2)
+
+
+def test_host_role_goes_to_the_lowest_seat_left():
+    room, (host, guest, third) = new_room(players=3)
+    room.leave(guest)
+    room.leave(host)
+    assert room.host is third
+    with pytest.raises(RoomError):
+        room.start(third, now=0)  # alone, so not enough players
+
+
+def test_host_leaving_mid_game_passes_the_role_on():
+    room, (host, guest, third) = new_room(players=3)
+    room.start(host, now=0)
+    room.leave(host)
+    assert room.host is guest
+    assert room.state_for(third)["host"] == 2
+
+
+def test_lobby_closes_once_everyone_has_left():
+    room, (host, guest) = new_room()
+    room.leave(guest)
+    room.leave(host)
+    assert room.closed == "Everyone left"
+    assert room.is_dead(now=0)
+
+
+def test_game_closes_once_everyone_has_left():
+    room, (host, guest) = new_room()
+    room.start(host, now=0)
+    room.leave(host)
+    assert room.closed is None
+    room.leave(guest)
+    assert room.closed == "Everyone left"
+
+
+def test_leaving_twice_in_a_game_is_harmless():
+    room, (host, guest, third) = new_room(players=3)
+    room.start(host, now=0)
+    room.leave(guest)
+    room.leave(guest)
+    assert room.game.gone == {2}
+    assert room.closed is None
 
 
 def test_seat_in_a_game_is_kept_but_marked_left():
@@ -303,8 +400,8 @@ def test_sweep_removes_empty_and_idle_rooms():
     manager = RoomManager()
     room = manager.create(0, "counting", {})
     host = room.join(object(), now=0)
-    assert manager.sweep(now=IDLE_TIMEOUT) == ([], [])
-    assert manager.sweep(now=IDLE_TIMEOUT + 1) == ([], [room])
+    assert manager.sweep(now=LOBBY_IDLE_TIMEOUT) == ([], [])
+    assert manager.sweep(now=LOBBY_IDLE_TIMEOUT + 1) == ([], [room])
 
     room = manager.create(0, "counting", {})
     host = room.join(object(), now=0)
@@ -312,6 +409,27 @@ def test_sweep_removes_empty_and_idle_rooms():
     assert manager.sweep(now=10 + RECONNECT_GRACE) == ([], [])
     assert manager.sweep(now=11 + RECONNECT_GRACE) == ([], [room])
     assert manager.rooms == {}
+
+
+def test_lobby_and_game_idle_for_different_times():
+    assert LOBBY_IDLE_TIMEOUT == 10 * 60 and GAME_IDLE_TIMEOUT == 15 * 60
+    room, (host, guest) = new_room()
+    assert not room.is_dead(now=LOBBY_IDLE_TIMEOUT)
+    assert room.is_dead(now=LOBBY_IDLE_TIMEOUT + 1)
+    room.start(host, now=0)
+    assert not room.is_dead(now=GAME_IDLE_TIMEOUT)
+    assert room.is_dead(now=GAME_IDLE_TIMEOUT + 1)
+
+
+def test_every_seat_timing_out_removes_a_game():
+    manager = RoomManager()
+    room = manager.create(0, "counting", {})
+    seats = [room.join(object(), now=0) for _ in range(2)]
+    room.start(seats[0], now=0)
+    for seat in seats:
+        room.disconnect(seat, seat.socket, now=10)
+    assert manager.sweep(now=10 + RECONNECT_GRACE) == ([], [])
+    assert manager.sweep(now=11 + RECONNECT_GRACE) == ([], [room])
 
 
 def test_room_codes_are_unique():

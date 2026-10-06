@@ -3,7 +3,7 @@ import random
 import pytest
 
 from Server.core.base import GameError
-from Server.games.switch import MAX_DECKS, WIN, Switch, connects
+from Server.games.switch import MAX_DECKS, WIN, Switch, connects, new_deck
 
 
 def setup(players=2, hands=None, top="5H", pile=None, called=True, **settings):
@@ -292,6 +292,44 @@ def test_turn_skips_players_who_left():
     game.player_left(2)
     play(game, "5S")
     assert game.turn == 3
+
+
+def test_leavers_cards_are_shuffled_into_the_pile():
+    game = setup(players=3, hands={2: ["KS", "QD", "7C"]}, pile=["3S"] * 20)
+    game.player_left(2)
+    assert game.hands[2] == []
+    assert sorted(c for c in game.pile if c != "3S") == ["7C", "KS", "QD"]
+    assert len(game.pile) == 23
+    # spread through the pile at random, not just put on top or bottom
+    spots = set()
+    for seed in range(20):
+        game = setup(players=3, hands={2: ["KS"]}, pile=["3S"] * 20)
+        game.rng = random.Random(seed)
+        game.player_left(2)
+        spots.add(game.pile.index("KS"))
+    assert len(spots) > 5
+
+
+def test_no_cards_are_lost_when_someone_leaves():
+    game = Switch(4, rng=random.Random(3))
+    game.player_left(3)
+    held = [c for hand in game.hands.values() for c in hand]
+    assert sorted(held + game.pile + game.discard) == sorted(new_deck())
+
+
+def test_leavers_cards_can_be_drawn():
+    game = setup(players=3, hands={1: ["9C"], 2: ["KS"]}, pile=[])
+    game.player_left(2)
+    draw(game)
+    assert game.hands[1] == ["9C", "KS"]
+
+
+def test_hand_kept_when_leaving_after_the_round():
+    game = setup(players=3, hands={1: ["5S"], 2: ["9C", "4D"]})
+    play(game, "5S")
+    assert game.over
+    game.player_left(2)
+    assert game.hands[2] == ["9C", "4D"]  # the result still shows what they were left with
 
 
 # ---- drawing and running out

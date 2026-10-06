@@ -451,7 +451,6 @@ function renderLobby() {
 
   $("start").hidden = !isHost;
   $("start").disabled = !ready;
-  $("lobby-leave").textContent = isHost ? "Cancel game" : "Leave";
 }
 
 async function copyText(text) {
@@ -542,7 +541,8 @@ function renderFrame() {
   const rematch = $("rematch");
   const iAsked = state.rematch.includes(state.you);
   const theyAsked = state.rematch.some((p) => p !== state.you);
-  rematch.hidden = !state.over || left.length > 0;
+  // whoever left is dropped from the rematch, so it only needs enough players still here
+  rematch.hidden = !state.over || state.players.length - left.length < state.min_players;
   rematch.disabled = iAsked;
   rematch.textContent = iAsked
     ? "Waiting for others…"

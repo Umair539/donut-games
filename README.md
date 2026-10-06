@@ -83,11 +83,15 @@ Run **one instance only**. Rooms live in the memory of that one process, and a r
 1. The host picks a game and its settings, and gets a room code. The room starts in the **lobby**.
 2. Others join with the code until the game's maximum is reached. The host can start once the minimum number of players is in.
 3. After the host starts, the room is **playing**. The server checks every action and sends each player their own view of the game.
-4. When the game is over, everyone has to agree for a rematch.
+4. When the game is over, everyone still in the room has to agree for a rematch. Anyone who left is dropped and the next game is dealt for the players who stayed, as long as there are still enough of them.
+
+Settings are fixed when the room is made: for different ones, make a new room. The host's only extra power is starting the game. If the host leaves the lobby, the next player becomes host.
 
 Names are optional. They are tidied up (no control characters, single spaces, at most 16 characters) and an empty name becomes "Player". If a name is already taken in the room, a number is added, so a second "Sam" becomes "Sam 2". Names only live as long as the room does, and nothing is stored afterwards.
 
-If a player disconnects they have 60 seconds to come back before their seat is lost. Rooms are removed when everyone has left, or after 30 minutes without activity. Rooms are kept in memory, so restarting the server ends any games in progress.
+If a player disconnects they have 60 seconds to come back before their seat is lost. Rooms are removed as soon as everyone has left, or after 10 minutes without activity in the lobby (15 once the game has started).
+
+Rooms are kept in memory. When `SNAPSHOT_PATH` is set (the Docker image sets it to `/data/rooms.json`), the server also saves them there every 30 seconds and when it shuts down, and loads them when it starts. A deploy then only shows players a few seconds of "reconnecting": their browsers rejoin with their tokens, everyone gets 2 minutes to come back instead of 1, and the player whose turn it is gets a fresh turn timer. For this to work the container has to be stopped rather than killed (`docker stop`, which lets it save) and `/data` has to be a volume, which the deploy scripts in `infra/` do. Saved rooms that don't fit the new code, because a game's saved state changed shape, are dropped instead of loaded.
 
 ### Messages
 All messages are JSON over a single WebSocket at `/ws`.
@@ -100,7 +104,7 @@ All messages are JSON over a single WebSocket at `/ws`.
 | `{"type": "start"}` | Host only. Starts the game |
 | `{"type": "action", "action": {"col": 3}}` | Plays a move. What an action looks like is up to the game |
 | `{"type": "rematch"}` | Votes for a rematch |
-| `{"type": "leave"}` | Gives up your seat. If the host leaves the lobby, the room closes |
+| `{"type": "leave"}` | Gives up your seat. If you were the host, the next player takes over |
 
 The server replies with `joined` (your seat and reconnect token), `state`, `error` and `closed`. `state` holds the room's phase (`lobby` or `playing`), who you are, the settings, each player's connection status, and `data`, which is the game's view for you.
 
@@ -140,6 +144,7 @@ On your turn you either **play** or **draw**. Your first card must match the top
     * `view(player)`: the state that player may see, so hidden information such as a hand of cards stays on the server
     * `over` and `restart()`: for the rematch flow
     * `player_left(player)`: optional, lets a game with more than two players skip someone who left
+    * `snapshot()` and `restore(data)`: the full state as JSON and back, so games survive a server restart. Bump `snapshot_version` when the shape changes. A game without them still works, its rooms are just lost on a restart
 2. **Browser**: create `web/games/<name>/<name>.js` and `.css`, register the game in `window.Games` (see `web/games/connect4/connect4.js` for the interface), and add them to `index.html`.
 
 The lobby, codes, reconnecting, the settings form and the game picker all come from the framework.

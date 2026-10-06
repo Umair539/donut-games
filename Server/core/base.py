@@ -96,3 +96,17 @@ class BaseGame:
     def player_left(self, player):
         """Called when a player has left for good during a game. Games with more than two
         players can use this to skip them."""
+
+    # Saving a game so it survives a server restart. Bump snapshot_version whenever what
+    # snapshot() returns changes shape, so games saved by the old code are dropped rather
+    # than loaded wrongly.
+    snapshot_version = 1
+
+    def snapshot(self):
+        """The full state as JSON-safe data, secrets included. Never sent to players."""
+        raise NotImplementedError
+
+    @classmethod
+    def restore(cls, data):
+        """Rebuild a game from snapshot()."""
+        raise NotImplementedError

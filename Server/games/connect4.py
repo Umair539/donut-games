@@ -99,6 +99,19 @@ class Connect4(BaseGame):
         self.round += 1
         self.turn = (self.round + 1) % 2 + 1  # alternate who starts
 
+    def snapshot(self):
+        return self.to_dict()  # nothing is hidden, so the view is the whole state
+
+    @classmethod
+    def restore(cls, data):
+        game = cls(rows=data["rows"], cols=data["cols"], amount=data["amount"])
+        if len(data["board"]) != game.cols or any(len(c) != game.rows for c in data["board"]):
+            raise GameError("Saved board doesn't match its size")
+        game.board = [list(col) for col in data["board"]]
+        game.turn, game.status = data["turn"], data["status"]
+        game.winner, game.round = data["winner"], data["round"]
+        return game
+
     def to_dict(self):
         return {
             "rows": self.rows,

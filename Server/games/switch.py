@@ -196,11 +196,69 @@ class Switch(BaseGame):
         self.gone.add(player)
         if self.over:
             return
+        # their cards go back into the pick-up pile, each at a random place
+        cards, self.hands[player] = self.hands[player], []
+        for card in cards:
+            self.pile.insert(self.rng.randint(0, len(self.pile)), card)
         if len(self._active()) <= 1:
             self._end()
         elif self.turn == player:
             self.pending = None  # an attack on someone who left is dropped
             self._advance()
+
+    def snapshot(self):
+        return {
+            "num_players": self.num_players,
+            "hand_size": self.hand_size,
+            "jack_penalty": self.jack_penalty,
+            "start_decks": self.start_decks,
+            "force_play": self.force_play,
+            "play_on": self.play_on,
+            "gone": sorted(self.gone),
+            "round": self.round,
+            "decks": self.decks,
+            "force": self.force,
+            "pile": list(self.pile),
+            "hands": [[p, list(hand)] for p, hand in sorted(self.hands.items())],
+            "discard": list(self.discard),
+            "suit": self.suit,
+            "pending": dict(self.pending) if self.pending else None,
+            "direction": self.direction,
+            "turn": self.turn,
+            "status": self.status,
+            "winner": self.winner,
+            "places": list(self.places),
+            "log": list(self.log),
+            "calling": self.calling,
+            "called": sorted(self.called),
+        }
+
+    @classmethod
+    def restore(cls, data):
+        """The shuffle order isn't kept: a fresh random generator is as good as the old one."""
+        game = cls(data["num_players"], hand_size=data["hand_size"],
+                   jack_penalty=data["jack_penalty"], decks=data["start_decks"],
+                   force_play=data["force_play"], play_on=data["play_on"])
+        game.gone = set(data["gone"])
+        game.round = data["round"]
+        game.decks = data["decks"]
+        game.force = data["force"]
+        game.pile = list(data["pile"])
+        game.hands = {p: list(hand) for p, hand in data["hands"]}
+        game.discard = list(data["discard"])
+        game.suit = data["suit"]
+        game.pending = dict(data["pending"]) if data["pending"] else None
+        game.direction = data["direction"]
+        game.turn = data["turn"]
+        game.status = data["status"]
+        game.winner = data["winner"]
+        game.places = list(data["places"])
+        game.log = deque(data["log"], maxlen=LOG_LENGTH)
+        game.calling = data["calling"]
+        game.called = set(data["called"])
+        if set(game.hands) != set(range(1, game.num_players + 1)):
+            raise GameError("Saved hands don't match the players")
+        return game
 
     # ---- moves
 

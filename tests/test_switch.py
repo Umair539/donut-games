@@ -8,7 +8,8 @@ from Server.games.switch import MAX_DECKS, WIN, Switch, connects, new_deck
 
 def setup(players=2, hands=None, top="5H", pile=None, called=True, **settings):
     """A game with known cards. Player 1 starts. Everyone has called cards unless called is
-    False, so tests about other rules can go out straight away."""
+    False or lists who has, so tests about other rules can go out straight away. Pass
+    called=False when nobody goes out, or the failed call costs them a card."""
     game = Switch(players, rng=random.Random(0), **settings)
     for player, hand in (hands or {}).items():
         game.hands[player] = list(hand)
@@ -17,8 +18,10 @@ def setup(players=2, hands=None, top="5H", pile=None, called=True, **settings):
     if pile is not None:
         game.pile = list(pile)
     game.turn = 1
-    if called:
+    if called is True:
         game.called = set(game.hands)
+    elif called:
+        game.called = set(called)
     return game
 
 
@@ -99,7 +102,7 @@ def test_connections():
 
 
 def test_run_in_one_turn():
-    game = setup(hands={1: ["5H", "6H", "6C", "7C", "3D"], 2: ["3C"]})
+    game = setup(hands={1: ["5H", "6H", "6C", "7C", "3D"], 2: ["3C"]}, called=False)
     play(game, "5H", "6H", "6C", "7C")
     assert game.hands[1] == ["3D"]
     assert game.discard[-1] == "7C"
@@ -140,7 +143,7 @@ def test_ace_chained_keeps_its_own_suit():
 # ---- attacks
 
 def test_twos_stack():
-    game = setup(hands={1: ["2H", "4C"], 2: ["2S", "5C"]})
+    game = setup(hands={1: ["2H", "4C"], 2: ["2S", "5C"]}, called=False)
     play(game, "2H")
     assert game.pending == {"kind": "two", "count": 2}
     with pytest.raises(GameError):
@@ -210,7 +213,7 @@ def test_several_kings(kings, direction):
 
 
 def test_queen_must_be_covered():
-    game = setup(hands={1: ["QH", "3H", "QS", "3S", "4C"], 2: ["9C"]})
+    game = setup(hands={1: ["QH", "3H", "QS", "3S", "4C"], 2: ["9C"]}, called=False)
     with pytest.raises(GameError):
         play(game, "QH", "QS", "3H")  # the second queen needs a spade
     play(game, "QH", "QS", "3S")
@@ -218,7 +221,7 @@ def test_queen_must_be_covered():
 
 
 def test_uncovered_queen_picks_up():
-    game = setup(hands={1: ["QH", "4C"], 2: ["9C"]}, pile=["7D"])
+    game = setup(hands={1: ["QH", "4C"], 2: ["9C"]}, pile=["7D"], called=False)
     play(game, "QH")
     assert sorted(game.hands[1]) == ["4C", "7D"]
 
@@ -256,7 +259,7 @@ def test_first_out_ends_the_game_by_default():
 
 
 def test_play_on_for_places():
-    game = setup(players=3, play_on=True,
+    game = setup(players=3, play_on=True, called=[1],
                  hands={1: ["5S"], 2: ["9C", "3S"], 3: ["3H", "9H"]})
     play(game, "5S")
     assert not game.over and game.places == [1] and game.winner is None
@@ -318,7 +321,7 @@ def test_no_cards_are_lost_when_someone_leaves():
 
 
 def test_leavers_cards_can_be_drawn():
-    game = setup(players=3, hands={1: ["9C"], 2: ["KS"]}, pile=[])
+    game = setup(players=3, hands={1: ["9C"], 2: ["KS"]}, pile=[], called=False)
     game.player_left(2)
     draw(game)
     assert game.hands[1] == ["9C", "KS"]
@@ -335,7 +338,7 @@ def test_hand_kept_when_leaving_after_the_round():
 # ---- drawing and running out
 
 def test_draw_one_and_pass():
-    game = setup(hands={1: ["9C"], 2: ["9D"]}, pile=["3S"])
+    game = setup(hands={1: ["9C"], 2: ["9D"]}, pile=["3S"], called=False)
     draw(game)
     assert game.hands[1] == ["9C", "3S"] and game.turn == 2
 
@@ -347,14 +350,14 @@ def test_force_play():
 
 
 def test_discards_shuffle_back_in():
-    game = setup(hands={1: ["9C"], 2: ["9D"]}, pile=[])
+    game = setup(hands={1: ["9C"], 2: ["9D"]}, pile=[], called=False)
     game.discard = ["3S", "4S", "5H"]
     draw(game)
     assert len(game.hands[1]) == 2 and game.discard == ["5H"] and len(game.pile) == 1
 
 
 def test_first_extra_deck_forces_play_and_decks_stop_at_three():
-    game = setup(hands={1: ["9C"], 2: ["9D"]}, pile=[])
+    game = setup(hands={1: ["9C"], 2: ["9D"]}, pile=[], called=False)
     assert game.decks == 1 and not game.force
     draw(game)
     assert game.decks == 2 and len(game.pile) == 51
@@ -463,3 +466,41 @@ def test_calling_and_going_out_on_the_same_turn_picks_up_one():
     call(game)
     play(game, "5S")
     assert not game.over and game.hands[1] == ["7D"]
+
+
+def test_calling_and_not_going_out_picks_up_one():
+    game = setup(hands={1: ["5S", "6S", "9D"], 2: ["9C", "9H"]}, pile=["7D", "3C"],
+                 called=False)
+    call(game)
+    play(game, "5S")
+    assert game.hands[1] == ["6S", "9D"]  # no cost for calling itself
+    draw(game)
+    play(game, "6S")  # cards left, so the call failed
+    assert game.hands[1] == ["9D", "7D"]
+    assert game.log[-1] == {"player": 1, "text": "called cards but didn't go out, picked up 1"}
+    assert game.view(2)["called"] == []
+
+
+def test_calling_and_drawing_picks_up_one_more():
+    game = setup(hands={1: ["5S", "6S"], 2: ["9C", "9H"]}, pile=["7D", "3C", "4C"],
+                 called=False)
+    call(game)
+    play(game, "5S")
+    draw(game)
+    draw(game)  # player 1 draws instead of going out
+    assert sorted(game.hands[1]) == ["3C", "6S", "7D"]
+
+
+def test_being_skipped_doesnt_cost_a_called_card():
+    game = setup(hands={1: ["5S", "6S"], 2: ["5D", "8S", "9C"]}, called=False)
+    call(game)
+    play(game, "5S")
+    play(game, "8S")
+    draw(game)  # player 1 misses a turn
+    assert game.hands[1] == ["6S"]
+
+
+def test_failing_to_go_out_after_calling_only_picks_up_once():
+    game = setup(hands={1: ["2H"], 2: ["9C"]}, pile=["3C", "7D"])
+    play(game, "2H")  # can't go out on a power card
+    assert game.hands[1] == ["7D"]

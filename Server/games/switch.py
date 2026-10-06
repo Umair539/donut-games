@@ -313,6 +313,7 @@ class Switch(BaseGame):
             text += ", reversing play"
         self._log(player, text)
 
+        tried = not remaining  # played their last card, before any pick-up below
         if not remaining and rank(last) in POWER:
             self._draw(player, 1)
             self._log(player, "can't go out on a power card, picked up 1")
@@ -326,7 +327,7 @@ class Switch(BaseGame):
         if not self.hands[player]:
             self._went_out(player)
         else:
-            self._advance()
+            self._advance(tried=tried)
 
     def timeout(self, player):
         self._draw_instead(player, timed_out=True)
@@ -406,10 +407,14 @@ class Switch(BaseGame):
             called.add(self.turn)
         return called
 
-    def _advance(self, missed=False):
+    def _advance(self, missed=False, tried=False):
         """Pass the turn on. A missed turn (from an 8) isn't a go, so a call made on the
-        turn before it still counts for the player's next real go."""
+        turn before it still counts for the player's next real go. Not going out on that go
+        costs a card, unless the player already picked one up for trying (tried)."""
         player = self.turn
+        if player in self.called and not missed and not tried and self.hands[player]:
+            got = self._draw(player, 1)
+            self._log(player, f"called cards but didn't go out, picked up {got}")
         if self.calling:
             self.called.add(player)
         elif not missed:

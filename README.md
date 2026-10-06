@@ -1,7 +1,7 @@
 # Donut Games
 Donut-themed multiplayer games played in the browser. The host picks a game, chooses its settings and gets a 6-character code (or invite link) to share. Everyone waits in a lobby, and the host starts the game when they are ready. The Python server is the source of truth for every move and talks to the browsers over WebSockets.
 
-The server and the page around each game are shared, so a new game only has to provide its rules and its board. There are two games so far: Connect Donut (Connect Four) and Donut Cards (an Uno-style game with a normal deck).
+The server and the page around each game are shared, so a new game only has to provide its rules and its board. There are two games so far: Connect Donut (Connect Four) and Donut Cards (British Blackjack, the card game also called Switch, not the casino game).
 
 ---
 

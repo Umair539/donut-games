@@ -64,7 +64,7 @@ def connects(prev, card):
 class Switch(BaseGame):
     name = "switch"
     title = "Donut Cards"
-    description = "Uno with a normal deck. Empty your hand first."
+    description = "British Blackjack, also called Switch. Empty your hand first."
     min_players = 2
     max_players = 10
 

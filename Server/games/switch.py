@@ -5,6 +5,7 @@ from Server.core.base import TIMER_SETTINGS, BaseGame, GameError, check_timer
 
 SUITS = ("S", "H", "D", "C")
 SYMBOLS = {"S": "♠", "H": "♥", "D": "♦", "C": "♣"}
+DONUTS = {"S": "chocolate", "H": "pink", "D": "orange", "C": "blue"}  # each suit's donut
 RANKS = ("A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K")
 POWER = {"A", "2", "8", "J", "Q", "K"}  # you can't go out on one of these
 MAX_DECKS = 3  # decks are added when the cards run out, up to this many
@@ -338,7 +339,7 @@ class Switch(BaseGame):
 
         text = f"played {show(cards)}"
         if rank(last) == "A":
-            text += f" and asked for {SYMBOLS[chosen]}"
+            text += f" and asked for {DONUTS[chosen]}"
         if kings % 2:
             self.direction = -self.direction
             text += ", reversing play"
@@ -402,7 +403,7 @@ class Switch(BaseGame):
         if pending:
             name = "a 2" if pending["kind"] == TWO else "a jack"
             return f"Play {name} or pick up {pending['count']}"
-        return f"Play a {SYMBOLS[self.suit]}, a {rank(self.discard[-1])} or an ace"
+        return f"Play a {DONUTS[self.suit]} donut, a {rank(self.discard[-1])} or an ace"
 
     # ---- cards and turns
 

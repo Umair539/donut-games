@@ -9,6 +9,13 @@
   const SUITS = ["S", "H", "D", "C"];
   const SYMBOLS = { S: "♠", H: "♥", D: "♦", C: "♣" };
   const SUIT_NAMES = { S: "spades", H: "hearts", D: "diamonds", C: "clubs" };
+  // each suit is a donut, as on the card faces
+  const DONUTS = {
+    S: { src: "sprites/choccy.png", name: "chocolate" },
+    H: { src: "sprites/pink.png", name: "pink" },
+    D: { src: "sprites/orange.png", name: "orange" },
+    C: { src: "sprites/blue.png", name: "blue" },
+  };
   const RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
   const RANK_NAMES = { A: "ace", J: "jack", Q: "queen", K: "king" };
   const COUNTERS = { two: "2", jack: "J", skip: "8" };
@@ -89,7 +96,8 @@
         <div class="sw-suits" data-suits hidden>
           <span class="small">Ask for</span>
           ${SUITS.map((s) => `<button type="button" class="sw-suit-btn suit-${s}"
-              data-choose="${s}" aria-label="${SUIT_NAMES[s]}">${SYMBOLS[s]}</button>`).join("")}
+              data-choose="${s}" aria-label="${DONUTS[s].name} ${SYMBOLS[s]}"
+              title="${DONUTS[s].name}"><img src="${DONUTS[s].src}" alt=""></button>`).join("")}
         </div>
         <div class="sw-controls">
           <button class="btn btn-ghost" type="button" data-clear>Clear</button>
@@ -201,7 +209,9 @@
     );
     const top = g.discard[g.discard.length - 1];
     const suitNode = q("[data-suit]");
-    suitNode.textContent = rank(top) === "A" ? `${SYMBOLS[g.suit]} asked` : SYMBOLS[g.suit];
+    const donut = cardImg(DONUTS[g.suit].src, `${DONUTS[g.suit].name} ${SYMBOLS[g.suit]}`);
+    suitNode.replaceChildren(donut, ...(rank(top) === "A" ? [" asked"] : []));
+    suitNode.title = `${DONUTS[g.suit].name} to follow`;
     suitNode.className = `sw-suit suit-${g.suit}`;
     q("[data-direction]").textContent = g.direction === 1 ? "↻" : "↺";
     q("[data-direction]").title = g.direction === 1 ? "Clockwise" : "Anticlockwise";

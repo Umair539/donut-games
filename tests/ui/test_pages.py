@@ -335,9 +335,11 @@ def test_cards_ace_asks_for_a_suit(player, live_server):
     card(ann, "A♥").click()
     expect(ann.locator("[data-suits]")).to_be_visible()
     expect(ann.locator("[data-play]")).to_be_disabled()  # pick a suit first
-    ann.get_by_role("button", name="clubs").click()
+    expect(ann.locator("[data-suits] img")).to_have_count(4)  # the donuts, not ♠♥♦♣
+    ann.get_by_role("button", name="blue").click()
     ann.locator("[data-play]").click()
-    expect(bob.locator("[data-suit]")).to_have_text("♣ asked")
+    expect(bob.locator("[data-suit]")).to_have_text("asked")
+    expect(bob.locator("[data-suit] img")).to_have_attribute("src", "sprites/blue.png")
 
 
 def test_cards_calling_shows_everyone(player, live_server):

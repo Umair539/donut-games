@@ -196,8 +196,23 @@ main:has(.sw) .game-actions {
 }
 
 .sw-suit {
-  font-size: 1.6em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
   line-height: 1;
+}
+
+.sw-suit img,
+.sw-suit-btn img {
+  width: 1.6em;
+  height: 1.6em;
+  image-rendering: pixelated;
+  display: block;
+}
+
+.sw-suit-btn img {
+  width: 1.4em;
+  height: 1.4em;
 }
 
 .suit-H,
@@ -252,10 +267,10 @@ main:has(.sw) .game-actions {
   background: var(--surface);
   font-size: 1.3em;
   cursor: pointer;
-}
-
-.sw-suit-btn:not(.suit-H, .suit-D) {
-  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
 }
 
 .sw-suit-btn.chosen {

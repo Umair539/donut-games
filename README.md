@@ -21,7 +21,10 @@ The server and the page around each game are shared, so a new game only has to p
 * **`index.html`**, **`style.css`**, **`app.js`**: The shared shell: game picker, settings form, lobby, and the frame around a game.
 * **`games/<name>/`**: One folder per game with its script and stylesheet.
 * **`sprites/`**: The donut sprites.
-* **`games/switch/cards/`**: Placeholder card images, to be replaced with donut-themed ones.
+* **`games/switch/cards/`**: The card images, drawn from the sprites by `scripts/make_cards.py`.
+
+### scripts
+* **`make_cards.py`**: Draws the Donut Cards faces from the donut sprites, one colour per suit. Needs Pillow. Run it again after changing a sprite.
 
 ### tests
 * Tests for the games, the room framework (using a made-up 2-4 player game), the server, and saving and restoring rooms across a restart.
@@ -120,6 +123,8 @@ The server replies with `joined` (your seat and reconnect token), `state`, `erro
 
 2 to 10 players. Get rid of all your cards to win. 6 or more players always use 2 decks, and smaller games can choose 2. Who goes first is random each round.
 
+Each donut colour is a suit: chocolate is spades ♠, blue is clubs ♣, pink is hearts ♥ and orange is diamonds ♦. Chocolate and blue are the dark suits (black on a normal deck), pink and orange the bright ones (red).
+
 By default the first player out wins and the round ends. With *Keep playing for 2nd, 3rd...* switched on, players who go out watch while the rest play on for places, until only one is left.
 
 On your turn you either **play** or **draw**. Your first card must match the top card's suit or rank, or be an ace. You can then keep adding cards in the same turn as long as each one *connects* to the card before it: the same rank, or the same suit one step up or down (an ace sits next to both the 2 and the king). An ace is only wild as your first card. Later in the turn it has to connect like any other card.
@@ -129,11 +134,11 @@ On your turn you either **play** or **draw**. Your first card must match the top
 | **Ace** | Wild as the first card of your turn: play it on anything. If an ace is the last card of your turn, pick the suit the next player must follow. Otherwise keep going from it, e.g. A♠ then 2♠ or K♠. |
 | **2** | The next player picks up 2, unless they play a 2 and pass on the total. |
 | **8** | The next player misses a turn, unless they play an 8. Each 8 skips one more player. |
-| **Black jack** | The next player picks up 5 (the host can choose 5 to 7), unless they play a black jack to pass it on or a red jack to cancel it. |
+| **Chocolate or blue jack** | The next player picks up 5 (the host can choose 5 to 7), unless they play a chocolate or blue jack to pass it on, or a pink or orange jack to cancel it. |
 | **Queen** | Must be covered in the same turn by a card of its suit, or by another queen (which then needs covering too). If you can't cover it, you pick up 1. |
 | **King** | Reverses play. Two kings in one turn keep the same direction, three reverse it, four keep it. |
 
-* An attack (2s, 8s or black jacks) only reaches the next player if it is at the end of your turn. If you answer one and then carry on with other cards, it stops there.
+* An attack (2s, 8s or chocolate and blue jacks) only reaches the next player if it is at the end of your turn. If you answer one and then carry on with other cards, it stops there.
 * Aces can't be used to answer an attack.
 * You can't go out on a power card (A, 2, 8, J, Q, K). If you try, you pick up 1.
 * **Cards!** Press the Cards button on the turn before the one you plan to go out on, then play all your remaining cards on your next go. Everyone sees a *Cards!* badge next to your name until then, so they can try to stop you. If you go out without having called on your previous turn, you pick up 1 instead. Call and then don't go out on your next go, and you pick up 1 too (just the 1 if you played your last card but couldn't go out on it). Calling and going out on the same turn doesn't count. Being skipped by an 8 doesn't use up your call or cost you a card.

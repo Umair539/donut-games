@@ -309,9 +309,10 @@
   window.Games.switch = {
     icon: `${CARDS}ace_of_spades.png`,
     instructions: [
+      "Each donut is a suit: chocolate ♠ and blue ♣ are the dark suits, pink ♥ and orange ♦ the bright ones.",
       "Be the first to empty your hand. On your turn play a card matching the suit or rank of the top card, or an ace (wild, you pick the suit). Can't or won't? Draw a card.",
       "You can play several cards in one turn: same rank, or the same suit one step up or down (A sits next to 2 and K).",
-      "2: next player picks up 2 (stacks). Black jack: next player picks up 5–7 (a red jack cancels it). 8: next player misses a turn (stacks). Counter an attack with the same kind of card, or take it.",
+      "2: next player picks up 2 (stacks). Chocolate or blue jack: next player picks up 5–7 (a pink or orange jack cancels it). 8: next player misses a turn (stacks). Counter an attack with the same kind of card, or take it.",
       "King: reverses direction (an odd number of kings in one turn). Queen: cover it with the same suit or another queen, or pick up 1.",
       "You can't go out on a 2, 8, J, Q, K or ace: you pick up 1 instead.",
       "Cards! Press the red Cards button during the turn before the one you plan to go out on, then play your last cards on your next go. Everyone sees who has called. Go out without calling on your previous turn and you pick up 1 instead. Call and then don't go out on your next go and you pick up 1 too. Being skipped by an 8 doesn't use up your call.",

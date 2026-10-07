@@ -71,7 +71,7 @@ class Switch(BaseGame):
     settings_schema = [
         {"key": "hand_size", "label": "Starting cards", "type": "int", "min": 1, "max": 7,
          "default": 7},
-        {"key": "jack_penalty", "label": "Black jack pick-up", "type": "int", "min": 5,
+        {"key": "jack_penalty", "label": "Chocolate/blue jack pick-up", "type": "int", "min": 5,
          "max": 7, "default": 5},
         {"key": "decks", "label": "Decks (6+ players always get 2)", "type": "int", "min": 1,
          "max": 2, "default": 1},
@@ -93,7 +93,7 @@ class Switch(BaseGame):
         if not _is_int(hand_size) or not 1 <= hand_size <= 7:
             raise GameError("Starting cards must be between 1 and 7")
         if not _is_int(jack_penalty) or not 5 <= jack_penalty <= 7:
-            raise GameError("Black jack pick-up must be between 5 and 7")
+            raise GameError("Chocolate/blue jack pick-up must be between 5 and 7")
         if not _is_int(decks) or not 1 <= decks <= 2:
             raise GameError("Decks must be 1 or 2")
         if not isinstance(force_play, bool):
@@ -298,7 +298,7 @@ class Switch(BaseGame):
             elif rank(card) == "8":
                 pending = self._stack(pending, SKIP, 1)
             else:
-                pending = None  # includes the red jack, which cancels a black jack
+                pending = None  # includes a pink or orange jack cancelling a chocolate or blue one
 
         self.hands[player] = remaining
         self.discard.extend(cards)

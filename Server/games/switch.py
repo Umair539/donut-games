@@ -138,6 +138,17 @@ class Switch(BaseGame):
         # "Cards!" has to be called during the turn before the one you go out on
         self.calling = False  # the player whose turn it is has called this turn
         self.called = set()  # players who called on their last turn
+        self._start_history()
+
+    def _start_history(self):
+        """What everyone at the table has seen happen this round, for bots to reason about:
+        ("play", player, cards), ("draw", player, count, without), ("left", player) and
+        ("shuffle", cards, decks) when the discards go back into the pile. without is what
+        the cards held before drawing couldn't have been, as (suits, ranks, certain), or None
+        if picking up says nothing. A game restored after a restart starts its history again
+        from the hands as they are."""
+        self.history = []
+        self.history_hands = {p: len(hand) for p, hand in self.hands.items()}
 
     # ---- the framework interface
 
@@ -198,6 +209,7 @@ class Switch(BaseGame):
             return
         # their cards go back into the pick-up pile, each at a random place
         cards, self.hands[player] = self.hands[player], []
+        self.history.append(("left", player))
         for card in cards:
             self.pile.insert(self.rng.randint(0, len(self.pile)), card)
         if len(self._active()) <= 1:
@@ -233,6 +245,23 @@ class Switch(BaseGame):
             "called": sorted(self.called),
         }
 
+    def copy(self, rng=None):
+        """A separate game in the same state, much faster than snapshot and restore. Bots use
+        it to try moves out."""
+        game = Switch.__new__(Switch)
+        game.__dict__.update(self.__dict__)
+        game.rng = rng or random.Random()
+        game.gone = set(self.gone)
+        game.pile = list(self.pile)
+        game.hands = {p: list(hand) for p, hand in self.hands.items()}
+        game.discard = list(self.discard)
+        game.pending = dict(self.pending) if self.pending else None
+        game.places = list(self.places)
+        game.log = deque(self.log, maxlen=LOG_LENGTH)
+        game.called = set(self.called)
+        game.history = list(self.history)
+        return game
+
     @classmethod
     def restore(cls, data):
         """The shuffle order isn't kept: a fresh random generator is as good as the old one."""
@@ -256,6 +285,7 @@ class Switch(BaseGame):
         game.log = deque(data["log"], maxlen=LOG_LENGTH)
         game.calling = data["calling"]
         game.called = set(data["called"])
+        game._start_history()
         if set(game.hands) != set(range(1, game.num_players + 1)):
             raise GameError("Saved hands don't match the players")
         return game
@@ -302,6 +332,7 @@ class Switch(BaseGame):
 
         self.hands[player] = remaining
         self.discard.extend(cards)
+        self.history.append(("play", player, tuple(cards)))
         self.pending = pending
         self.suit = chosen if rank(last) == "A" else suit(last)
 
@@ -337,17 +368,24 @@ class Switch(BaseGame):
         if pending and pending["kind"] == SKIP:
             left = pending["count"] - 1  # the rest of the skips move on to the next player
             self.pending = {"kind": SKIP, "count": left} if left else None
+            if not timed_out:  # probably no 8 to pass it on with
+                self.history.append(("draw", player, 0, ((), ("8",), False)))
             self._log(player, "missed a turn")
             self._advance(missed=True)
             return
         if pending:
-            got = self._draw(player, pending["count"])
+            # probably nothing to answer it with
+            without = None if timed_out else ((), (COUNTERS[pending["kind"]],), False)
+            got = self._draw(player, pending["count"], without)
             self.pending = None
             self._log(player, f"picked up {got}")
         else:
             if self.force and not timed_out and any(self.can_start(c) for c in self.hands[player]):
                 raise GameError("You have a card you can play")
-            got = self._draw(player, 1)
+            # nothing that could go down, for certain if they had to play one
+            without = None if timed_out else \
+                ((self.suit,), (rank(self.discard[-1]), "A"), self.force)
+            got = self._draw(player, 1, without)
             text = "drew a card" if got else "couldn't draw, no cards left"
             self._log(player, "ran out of time and " + text if timed_out else text)
         self._advance()
@@ -368,20 +406,23 @@ class Switch(BaseGame):
 
     # ---- cards and turns
 
-    def _draw(self, player, amount):
-        """Move cards from the pile to a hand. Returns how many there were."""
+    def _draw(self, player, amount, without=None):
+        """Move cards from the pile to a hand. Returns how many there were. without is what
+        it says about the cards already held, for the history."""
         drawn = 0
         for _ in range(amount):
             if not self.pile and not self._refill():
                 break
             self.hands[player].append(self.pile.pop())
             drawn += 1
+        self.history.append(("draw", player, drawn, without))
         return drawn
 
     def _refill(self):
         """Shuffle the discards back in, or add a deck if there are none."""
         if len(self.discard) > 1:
             self.pile, self.discard = self.discard[:-1], self.discard[-1:]
+            self.history.append(("shuffle", tuple(self.pile), self.decks))
         elif self.decks < MAX_DECKS:
             self.decks += 1
             self.pile = new_deck()

@@ -432,9 +432,39 @@ function renderLobby() {
         badge.textContent = "Host";
         item.append(badge);
       }
+      if (p.bot && isHost) {
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "remove-bot";
+        remove.textContent = "×";
+        remove.setAttribute("aria-label", `Remove ${p.name}`);
+        remove.addEventListener("click", () => send({ type: "remove_bot", player: p.id }));
+        item.append(remove);
+      }
       return item;
     }),
   );
+
+  // the host can fill empty seats with computer players, if this game has any
+  const levels = (info && info.bots) || [];
+  const addBots = $("add-bots");
+  addBots.hidden = !isHost || !levels.length || count >= state.max_players;
+  if (!addBots.hidden) {
+    const label = document.createElement("span");
+    label.className = "muted";
+    label.textContent = "Add a bot:";
+    addBots.replaceChildren(
+      label,
+      ...levels.map((level) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "btn";
+        button.textContent = level[0].toUpperCase() + level.slice(1);
+        button.addEventListener("click", () => send({ type: "add_bot", level }));
+        return button;
+      }),
+    );
+  }
 
   const wait = $("lobby-wait");
   wait.replaceChildren();

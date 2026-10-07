@@ -19,6 +19,10 @@ The server and the page around each game are shared, so a new game only has to p
 * **`switch.py`**: Donut Cards rules: dealing, power cards, drawing and adding decks.
 * **`__init__.py`**: The list of games that can be hosted.
 
+### Server/bots: computer players
+* **`switch.py`**: The Donut Cards bots, see [Bots](#bots).
+* **`__init__.py`**: Which bots each game offers, by level.
+
 ### web
 * **`index.html`**, **`style.css`**, **`app.js`**: The shared shell: game picker, settings form, lobby, and the frame around a game.
 * **`games/<name>/`**: One folder per game with its script and stylesheet.
@@ -27,6 +31,7 @@ The server and the page around each game are shared, so a new game only has to p
 
 ### scripts
 * **`make_cards.py`**: Draws the Donut Cards faces from the donut sprites, one colour per suit. Needs Pillow. Run it again after changing a sprite.
+* **`arena.py`**: Plays bots against each other and reports how often each wins, e.g. `python scripts/arena.py search heuristic --games 500 --workers 8`.
 
 ### tests
 * Tests for the games, the room framework (using a made-up 2-4 player game), the server, and saving and restoring rooms across a restart.
@@ -88,7 +93,9 @@ The server has been on both clouds: it started on AWS Lightsail and moved to Goo
 3. After the host starts, the room is **playing**. The server checks every action and sends each player their own view of the game.
 4. When the game is over, everyone still in the room has to agree for a rematch. Anyone who left is dropped and the next game is dealt for the players who stayed, as long as there are still enough of them.
 
-Settings are fixed when the room is made: for different ones, make a new room. The host's only extra power is starting the game. If the host leaves the lobby, the next player becomes host.
+Settings are fixed when the room is made: for different ones, make a new room. The host's only extra powers are starting the game and adding bots. If the host leaves the lobby, the next person becomes host.
+
+In a game that has bots, the host can fill seats with them in the lobby. A bot moves a moment after its turn comes, always agrees to a rematch, and comes back after a restart. Bots never keep a room open by themselves: once every person has left, the room closes.
 
 Names are optional. They are tidied up (no control characters, single spaces, at most 16 characters) and an empty name becomes "Player". If a name is already taken in the room, a number is added, so a second "Sam" becomes "Sam 2". Names only live as long as the room does, and nothing is stored afterwards.
 
@@ -112,6 +119,8 @@ All messages are JSON over a single WebSocket at `/ws`.
 | `{"type": "create", "game": "connect4", "name": "Sam", "settings": {"rows": 6}}` | Makes a room and seats you as the host. Missing settings use their defaults |
 | `{"type": "join", "code": "K7QX4M", "name": "Sam"}` | Takes a free seat in a lobby |
 | `{"type": "rejoin", "code": "K7QX4M", "token": "..."}` | Gets your seat back after a refresh or dropped connection |
+| `{"type": "add_bot", "level": "medium"}` | Host only, in the lobby. Fills a seat with a computer player |
+| `{"type": "remove_bot", "player": 3}` | Host only, in the lobby. Takes a bot back out |
 | `{"type": "start"}` | Host only. Starts the game |
 | `{"type": "action", "action": {"col": 3}}` | Plays a move. What an action looks like is up to the game |
 | `{"type": "rematch"}` | Votes for a rematch |
@@ -149,6 +158,35 @@ On your turn you either **play** or **draw**. Your first card must match the top
 
 ---
 
+## Bots
+
+Donut Cards has three computer players in **`Server/bots/switch.py`**. The lobby only offers the best, Hard; the other two are kept because Hard is built on Medium, and to measure against.
+
+* **Easy** plays a random legal move, nearly always playing rather than picking up.
+* **Medium** scores every legal move and plays the best looking one. A move scores well if it leaves fewer cards, keeps aces, 2s, 8s and jacks for later, keeps cards that still fit the suit, attacks the next player (more so if they're close to going out), and leaves a hand that can all go next turn, in which case it calls cards.
+* **Hard** searches. It takes Medium's 8 favourite moves and plays each one out to the end of the game many times, with Medium playing every seat, and picks the one that wins most. All the moves are tried in the same sampled games with the same luck after, so the difference between two moves is the moves and not the deal, and after each round the worse half is dropped. It thinks for up to 5 seconds, and stops early once one move is clearly ahead. A search starved of play-outs picks worse than Medium does, so if a busy server leaves it fewer than 100, it plays Medium's choice.
+
+**Bots don't cheat.** A bot is only ever handed a copy of the game with every card it can't see dealt again at random, so it knows what a person in its seat would: its own hand, every card played, and how many cards everyone holds. Hard also deals those cards to fit what the round has shown, since picking up says something about your hand: with *Must play if you can* on, it proves you had nothing that could go. And when the discards are shuffled back into the pile, nobody holding cards then can have one of them (unless another copy of the card is still out). The game keeps a history of plays, pick-ups and shuffles for this.
+
+**How strong they are**, from `scripts/arena.py` (seats rotate, so nobody keeps a lucky seat):
+
+| Game | Result |
+| --- | --- |
+| Medium against Easy, 2 players | Medium wins 76% |
+| Medium and 3 Easy, 4 players | Medium wins 49% (a fair share is 25%) |
+| Hard against Medium, 2 players | Hard wins 55 to 59% |
+| Hard against Medium, 2 players, 2 decks | Hard wins 51% |
+| Hard, Medium and Easy, 3 players | Hard 44%, Medium 43%, Easy 14% |
+| Hard and 3 Medium, 4 players | Hard wins 26 to 28% (25%) |
+| Hard and 5 Medium, 6 players (2 decks) | Hard wins 17% (17%) |
+| Hard on only 15 or 30 play-outs against Medium, 2 players | Hard wins 46% |
+
+So Hard is clearly better one on one with a single deck, and as good as Medium everywhere else.
+
+What limits Hard in bigger games is what it can't see. A test version that could see everyone's hand (but not the pile) won 72% of 4-player games against three Mediums, and the honest one wins about 26%. Pick-ups give away less than you'd think: they raise the share of an opponent's cards a guess gets right from 18% to 19%, which made no difference to winning that 400-game runs could measure. Medium's weights were tuned in 6,000-game runs, and no single change beat them clearly.
+
+---
+
 ## Adding a game
 
 1. **Server**: create `Server/games/<name>.py` with a class that extends `BaseGame` and add it to `GAMES` in `Server/games/__init__.py`. It sets `name`, `title`, `min_players`, `max_players` and a `settings_schema` (the host's options), and implements:
@@ -159,6 +197,7 @@ On your turn you either **play** or **draw**. Your first card must match the top
     * `player_left(player)`: optional, lets a game with more than two players skip someone who left
     * `snapshot()` and `restore(data)`: the full state as JSON and back, so games survive a server restart. Bump `snapshot_version` when the shape changes. A game without them still works, its rooms are just lost on a restart
 2. **Browser**: create `web/games/<name>/<name>.js` and `.css`, register the game in `window.Games` (see `web/games/connect4/connect4.js` for the interface), and add them to `index.html`.
+3. **Bots**, optional: add classes with `choose(game, player)`, returning the list of actions that make the bot's turn, to `BOTS` in `Server/bots/__init__.py`, by level. The game needs a `copy()` and a `turn` attribute, since each bot thinks about its own copy of the game in a thread.
 
 The lobby, codes, reconnecting, the settings form and the game picker all come from the framework.
 

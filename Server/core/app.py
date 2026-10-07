@@ -11,6 +11,7 @@ from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from Server.bots import BOTS
 from Server.core.base import GameError
 from Server.core.rooms import RoomError, RoomManager
 from Server.games import GAMES
@@ -18,6 +19,7 @@ from Server.games import GAMES
 WEB_DIR = Path(__file__).resolve().parent.parent.parent / "web"
 MAX_MESSAGE_SIZE = 1024  # characters, plenty for any valid message
 SWEEP_INTERVAL = 1  # seconds between checks for turn timers, expired seats and dead rooms
+BOT_INTERVAL = 0.2  # seconds between checks for bots whose turn it is
 SAVE_INTERVAL = 30  # seconds between saves, which only matter if the server crashes
 
 # Where rooms are saved so a restart (a deploy) doesn't end everyone's game. Unset means rooms
@@ -81,14 +83,40 @@ async def sweep_forever():
             last_save = now
 
 
+thinking = set()  # bots working out a move, kept here so the tasks aren't garbage collected
+
+
+async def think(room, seat, game, due, moves):
+    """Let a bot choose its move in a thread, so a slow one doesn't hold up everyone else,
+    then play it when it's due, if the game hasn't moved on in the meantime."""
+    try:
+        actions = await asyncio.to_thread(seat.brain.choose, game, seat.player)
+    except Exception as e:
+        print(f"Bot {seat.bot} in room {room.code} failed: {e!r}")
+        actions = None
+    await asyncio.sleep(max(0, due - time.monotonic()))
+    if not room.closed and room.bot_move(seat, actions, moves, time.monotonic()):
+        await broadcast(room)
+
+
+async def bots_forever():
+    while True:
+        await asyncio.sleep(BOT_INTERVAL)
+        for turn in rooms.bots_ready():
+            task = asyncio.create_task(think(*turn))
+            thinking.add(task)
+            task.add_done_callback(thinking.discard)
+
+
 @asynccontextmanager
 async def lifespan(app):
     if SNAPSHOT_PATH:
         count = rooms.load(SNAPSHOT_PATH, time.monotonic())
         print(f"Restored {count} room(s) from {SNAPSHOT_PATH}")
-    task = asyncio.create_task(sweep_forever())
+    tasks = [asyncio.create_task(sweep_forever()), asyncio.create_task(bots_forever())]
     yield
-    task.cancel()
+    for task in tasks:
+        task.cancel()
     save_rooms()  # uvicorn has closed every connection by now, so nothing changes after this
 
 
@@ -128,6 +156,14 @@ class Connection:
             if old is not None:
                 await close(old, "Game opened somewhere else")
             await self._seated(room, seat)
+
+        elif kind == "add_bot":
+            self.room.add_bot(self.seat, msg.get("level"), now)
+            await broadcast(self.room)
+
+        elif kind == "remove_bot":
+            self.room.remove_bot(self.seat, msg.get("player"), now)
+            await broadcast(self.room)
 
         elif kind == "start":
             self.room.start(self.seat, now)
@@ -186,7 +222,7 @@ def healthz():
 
 @app.get("/api/games")
 def list_games():
-    return [game.describe() for game in GAMES.values()]
+    return [{**game.describe(), "bots": list(BOTS.get(name, {}))} for name, game in GAMES.items()]
 
 
 def origin_allowed(socket):

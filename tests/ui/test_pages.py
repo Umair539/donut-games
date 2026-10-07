@@ -187,6 +187,28 @@ def test_host_leaving_the_lobby_hands_it_over(player):
     expect(cat.locator("#screen-game")).to_be_visible()
 
 
+def test_host_plays_against_bots(player):
+    ann, bob = player("Ann"), player("Bob")
+    code = host(ann, "Donut Cards")
+    join(bob, code)
+    expect(bob.locator("#add-bots")).to_be_hidden()  # only the host adds bots
+    ann.locator("#add-bots").get_by_role("button", name="Hard").click()
+    ann.locator("#add-bots").get_by_role("button", name="Hard").click()
+    expect(bob.locator("#lobby-heading")).to_have_text("Players (4/10)")
+    ann.get_by_role("button", name="Remove Hard Bot 2").click()
+    expect(ann.locator("#lobby-heading")).to_have_text("Players (3/10)")
+
+    start(ann, bob)
+    bot = bob.locator("[data-log] li", has_text="Hard Bot")
+    while not bot.count():  # the people pick up until the bot has had a go
+        for page in (ann, bob):
+            draw = page.locator("[data-draw]")
+            if draw.is_enabled():
+                draw.click()
+        bob.wait_for_timeout(300)
+    expect(bot.first).to_be_visible()
+
+
 # ---- Connect Donut
 
 

@@ -1,8 +1,11 @@
 import json
 import os
+import random
 import secrets
 import time
 
+from Server.bots import BOTS
+from Server.core.base import GameError
 from Server.games import GAMES
 
 CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O or 1/I
@@ -17,6 +20,7 @@ GAME_IDLE_TIMEOUT = 15 * 60
 SNAPSHOT_VERSION = 1  # bump when the room part of a snapshot changes shape
 MAX_CHAT_LENGTH = 200
 CHAT_GAP = 0.5  # seconds between one player's chat messages
+BOT_DELAY = 1.2  # seconds a bot waits before moving, so people can see what happened
 
 # room phases
 LOBBY = "lobby"
@@ -47,7 +51,7 @@ def clean_name(raw):
 
 
 class Seat:
-    def __init__(self, player, name, socket):
+    def __init__(self, player, name, socket, bot=None):
         self.player = player  # 1..N, may be renumbered when the game starts
         self.name = name
         self.token = secrets.token_urlsafe(16)
@@ -56,12 +60,20 @@ class Seat:
         self.grace = RECONNECT_GRACE  # how long this seat is kept while away
         self.left = False
         self.last_chat = None
+        self.bot = bot  # the level of a computer player, None for a person
+        self.brain = None  # the computer player itself, made when it first moves
 
     @property
     def status(self):
         if self.left:
             return LEFT
-        return CONNECTED if self.socket is not None else RECONNECTING
+        return CONNECTED if self.socket is not None or self.bot else RECONNECTING
+
+    def info(self):
+        info = {"id": self.player, "name": self.name, "status": self.status}
+        if self.bot:
+            info["bot"] = self.bot
+        return info
 
 
 class Room:
@@ -79,6 +91,8 @@ class Room:
         self.last_active = now
         self.deadline = None  # when the current turn runs out, if the game has a turn timer
         self.paused = False  # the turn timer waits for everyone to reconnect after a restart
+        self.bot_due = None  # when the bot whose turn it is should move
+        self.moves = 0  # counts every change to the game, so a bot's late answer can be dropped
 
     @property
     def phase(self):
@@ -98,6 +112,34 @@ class Room:
                 self.last_active = now
                 return seat
         raise RoomError("Room is full")
+
+    def add_bot(self, seat, level, now):
+        """The host fills a seat in the lobby with a computer player."""
+        levels = BOTS.get(self.game_cls.name, {})
+        if self.game is not None:
+            raise RoomError("Game already started")
+        if seat is not self.host:
+            raise RoomError("Only the host can add bots")
+        if not isinstance(level, str) or level not in levels:
+            raise RoomError("Unknown bot")
+        for player in range(1, self.game_cls.max_players + 1):
+            if player not in self.seats:
+                name = self._unique_name(f"{level.capitalize()} Bot")
+                self.seats[player] = Seat(player, name, None, bot=level)
+                self.last_active = now
+                return
+        raise RoomError("Room is full")
+
+    def remove_bot(self, seat, player, now):
+        if self.game is not None:
+            raise RoomError("Game already started")
+        if seat is not self.host:
+            raise RoomError("Only the host can remove bots")
+        target = self.seats.get(player) if type(player) is int else None
+        if target is None or not target.bot:
+            raise RoomError("That isn't a bot")
+        del self.seats[player]
+        self.last_active = now
 
     def _unique_name(self, name):
         """If someone here already has this name, add 2, 3, 4... until it is free."""
@@ -139,14 +181,16 @@ class Room:
             seat.left = True
         elif self.seats.get(seat.player) is seat:
             del self.seats[seat.player]
-        present = self._present()
-        if not present:
-            self.closed = "Everyone left"  # and the game isn't told, nobody is left to play
+        people = self._people()
+        if not people:
+            # bots don't play on by themselves, and the game isn't told, nobody is left to play
+            self.closed = "Everyone left"
             return
         if seat is self.host:
-            self.host = present[0]
+            self.host = people[0]
         if self.game is not None and was_here:
             self.game.player_left(seat.player)
+            self.moves += 1
             self._arm(now)  # the turn may have moved on
             self._maybe_rematch(now)  # everyone still here may already have asked
         self._resume(now)  # whoever was still awaited may have been the one who left
@@ -154,6 +198,10 @@ class Room:
     def _present(self):
         """Seats that haven't left, lowest number first."""
         return sorted((s for s in self.seats.values() if not s.left), key=lambda s: s.player)
+
+    def _people(self):
+        """Seats that haven't left and aren't bots."""
+        return [s for s in self._present() if not s.bot]
 
     def expire_seats(self, now):
         """Remove seats that stayed away past the grace period. Returns True if any did."""
@@ -186,6 +234,7 @@ class Room:
             raise RoomError("Not enough players left")
         turn = getattr(self.game, "turn", None)
         self.game.apply(seat.player, action)
+        self.moves += 1
         self.last_active = now
         if self.game.over or getattr(self.game, "turn", None) != turn:
             self._arm(now)  # some actions, like calling cards in Switch, don't end the turn
@@ -205,12 +254,16 @@ class Room:
         return {"type": "chat", "player": seat.player, "name": seat.name, "text": text}
 
     def _arm(self, now):
-        """Restart the turn clock, or stop it if there is no timer or the game is over."""
+        """Restart the turn clock, or stop it if there is no timer or the game is over. If
+        it's now a bot's turn, give it a moment before it moves."""
         game = self.game
-        if self.settings.get("timer") and game is not None and not game.over and not self.paused:
+        running = game is not None and not game.over and not self.paused
+        if self.settings.get("timer") and running:
             self.deadline = now + self.settings["turn_seconds"]
         else:
             self.deadline = None
+        seat = self.seats.get(getattr(game, "turn", None)) if running else None
+        self.bot_due = now + BOT_DELAY if seat is not None and seat.bot else None
 
     def _resume(self, now):
         """After a restart, start the turn clock once everyone still in the game is back. If
@@ -231,7 +284,42 @@ class Room:
             self.deadline = None  # nobody left to play against
             return False
         self.game.timeout(self.game.turn)
+        self.moves += 1
         self._arm(now)
+        return True
+
+    # ---- bots
+
+    def bot_ready(self):
+        """If it's a bot's turn, returns (its seat, a copy of the game to think about, when
+        to move, the move count to hand back to bot_move). It thinks straight away and
+        moves once the time comes, so its thinking hides in the pause. Each turn is handed
+        out only once, so a bot that is still thinking isn't asked again."""
+        if self.bot_due is None:
+            return None
+        due, self.bot_due = self.bot_due, None
+        seat = self.seats[self.game.turn]
+        if seat.brain is None:
+            seat.brain = BOTS[self.game_cls.name][seat.bot](random.Random())
+        return seat, self.game.copy(), due, self.moves
+
+    def bot_move(self, seat, actions, moves, now):
+        """Play the turn a bot chose, unless the game changed while it was thinking. Returns
+        True if it played. A bot that failed (actions is None) or chose a move the game won't
+        take plays as if it had run out of time, so the game can't get stuck."""
+        if moves != self.moves or self.game.over or self.game.turn != seat.player:
+            return False
+        try:
+            if actions is None:
+                raise GameError("Bot could not decide")
+            for action in actions:
+                self.game.apply(seat.player, action)
+        except GameError as e:
+            print(f"Bot {seat.bot} in room {self.code} made a bad move {actions}: {e!r}")
+            if self.game.turn == seat.player and not self.game.over:
+                self.game.timeout(seat.player)
+        self.moves += 1
+        self._arm(now)  # not activity: a room where the people walked away still expires
         return True
 
     def request_rematch(self, seat, now):
@@ -249,7 +337,7 @@ class Room:
         present = self._present()
         if not self.game.over or len(present) < self.game_cls.min_players:
             return
-        if self.rematch != {s.player for s in present}:
+        if self.rematch != {s.player for s in self._people()}:  # bots are always up for it
             return
         self.rematch.clear()
         if len(present) == len(self.seats):
@@ -258,6 +346,7 @@ class Room:
             self.seats = {s.player: s for s in present}
             self._renumber()
             self.game = self.game_cls.create(self.settings, len(present))
+        self.moves += 1
         self._arm(now)
 
     def _renumber(self):
@@ -272,9 +361,10 @@ class Room:
     def is_dead(self, now):
         if self.closed:
             return True
-        if not any(s.status == CONNECTED for s in self.seats.values()):
+        people = [s for s in self.seats.values() if not s.bot]
+        if not any(s.status == CONNECTED for s in people):
             # nobody here: keep the room only while someone might still reconnect
-            return all(s.left for s in self.seats.values())
+            return all(s.left for s in people)
         timeout = LOBBY_IDLE_TIMEOUT if self.game is None else GAME_IDLE_TIMEOUT
         return now - self.last_active > timeout
 
@@ -293,10 +383,7 @@ class Room:
             "settings": self.settings,
             "min_players": self.game_cls.min_players,
             "max_players": self.game_cls.max_players,
-            "players": [
-                {"id": p, "name": s.name, "status": s.status}
-                for p, s in sorted(self.seats.items())
-            ],
+            "players": [s.info() for _, s in sorted(self.seats.items())],
             "over": game.over if game else False,
             "rematch": sorted(self.rematch),
             "seconds_left": self.seconds_left(time.monotonic()),
@@ -315,7 +402,8 @@ class Room:
             "settings": self.settings,
             "host": self.host.player if self.host else None,
             "seats": [
-                {"player": s.player, "name": s.name, "token": s.token, "left": s.left}
+                {"player": s.player, "name": s.name, "token": s.token, "left": s.left,
+                 "bot": s.bot}
                 for s in self.seats.values()
             ],
             "rematch": sorted(self.rematch),
@@ -333,11 +421,14 @@ class Room:
         settings = game_cls.validate_settings(data["settings"])
         room = cls(data["code"], game_cls, settings, now)
         for saved in data["seats"]:
-            seat = Seat(saved["player"], saved["name"], None)
+            bot = saved.get("bot")  # rooms saved before there were bots have none
+            if bot is not None and bot not in BOTS.get(game_cls.name, {}):
+                raise ValueError(f"Unknown bot {bot!r}")
+            seat = Seat(saved["player"], saved["name"], None, bot=bot)
             seat.token, seat.left = saved["token"], saved["left"]
             seat.away_since, seat.grace = now, RESTORE_GRACE
             room.seats[seat.player] = seat
-        room.host = room.seats.get(data["host"]) or (room._present() or [None])[0]
+        room.host = room.seats.get(data["host"]) or (room._people() or [None])[0]
         room.rematch = set(data["rematch"]) & set(room.seats)
         state = data["state"]
         if state is not None:
@@ -373,6 +464,15 @@ class RoomManager:
 
     def remove(self, room):
         self.rooms.pop(room.code, None)
+
+    def bots_ready(self):
+        """Every bot whose turn has come, as (room, seat, game copy, when, move count)."""
+        ready = []
+        for room in self.rooms.values():
+            turn = room.bot_ready()
+            if turn:
+                ready.append((room, *turn))
+        return ready
 
     def sweep(self, now):
         """Expire seats and remove dead rooms. Returns (changed rooms, removed rooms)."""

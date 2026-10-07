@@ -3,6 +3,8 @@ Donut-themed multiplayer games played in the browser. The host picks a game, cho
 
 The server and the page around each game are shared, so a new game only has to provide its rules and its board. There are two games so far: Connect Donut (Connect Four) and Donut Cards (British Blackjack, the card game also called Switch, not the casino game).
 
+**Play it:** https://donutgames.co.uk
+
 ---
 
 ## Project Structure

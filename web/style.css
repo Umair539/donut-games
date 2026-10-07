@@ -117,6 +117,25 @@ p {
   margin-bottom: 24px;
 }
 
+/* a link to the code, under the home screen */
+.site-footer {
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  text-align: center;
+}
+
+.site-footer a {
+  display: inline-flex;
+  color: var(--muted);
+  transition: color 0.15s;
+}
+
+.site-footer a:hover,
+.site-footer a:focus-visible {
+  color: var(--text);
+}
+
 .hero-donuts {
   display: flex;
   justify-content: center;

@@ -43,6 +43,12 @@ def test_host_adds_bots():
     ]
 
 
+def test_only_one_level_goes_unnamed(monkeypatch):
+    monkeypatch.setitem(BOTS, "switch", {"hard": HeuristicBot})
+    room, _ = lobby("hard", "hard")
+    assert [s.name for s in room.seats.values()][1:] == ["Bot", "Bot 2"]
+
+
 @pytest.mark.parametrize("level", ["impossible", None, 3])
 def test_unknown_bot(level):
     room, (host,) = lobby()

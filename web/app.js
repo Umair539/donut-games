@@ -450,20 +450,26 @@ function renderLobby() {
   const addBots = $("add-bots");
   addBots.hidden = !isHost || !levels.length || count >= state.max_players;
   if (!addBots.hidden) {
-    const label = document.createElement("span");
-    label.className = "muted";
-    label.textContent = "Add a bot:";
-    addBots.replaceChildren(
-      label,
-      ...levels.map((level) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "btn";
-        button.textContent = level[0].toUpperCase() + level.slice(1);
-        button.addEventListener("click", () => send({ type: "add_bot", level }));
-        return button;
-      }),
-    );
+    const addButton = (level, text) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "btn";
+      button.textContent = text;
+      button.addEventListener("click", () => send({ type: "add_bot", level }));
+      return button;
+    };
+    if (levels.length === 1) {
+      // nothing to choose between, so no need to name the level
+      addBots.replaceChildren(addButton(levels[0], "Add a bot"));
+    } else {
+      const label = document.createElement("span");
+      label.className = "muted";
+      label.textContent = "Add a bot:";
+      addBots.replaceChildren(
+        label,
+        ...levels.map((level) => addButton(level, level[0].toUpperCase() + level.slice(1))),
+      );
+    }
   }
 
   const wait = $("lobby-wait");

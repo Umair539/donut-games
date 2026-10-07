@@ -160,7 +160,7 @@ On your turn you either **play** or **draw**. Your first card must match the top
 
 ## Bots
 
-Donut Cards has three computer players in **`Server/bots/switch.py`**. The lobby only offers the best, Hard; the other two are kept because Hard is built on Medium, and to measure against.
+Donut Cards has three computer players in **`Server/bots/switch.py`**. The lobby only offers the best, Hard, so it just says *Add a bot* and the bots are called Bot, Bot 2 and so on (with more than one level on offer, the buttons and names say which). The other two are kept because Hard is built on Medium, and to measure against.
 
 * **Easy** plays a random legal move, nearly always playing rather than picking up.
 * **Medium** scores every legal move and plays the best looking one. A move scores well if it leaves fewer cards, keeps aces, 2s, 8s and jacks for later, keeps cards that still fit the suit, attacks the next player (more so if they're close to going out), and leaves a hand that can all go next turn, in which case it calls cards.

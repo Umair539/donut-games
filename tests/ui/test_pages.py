@@ -192,14 +192,14 @@ def test_host_plays_against_bots(player):
     code = host(ann, "Donut Cards")
     join(bob, code)
     expect(bob.locator("#add-bots")).to_be_hidden()  # only the host adds bots
-    ann.locator("#add-bots").get_by_role("button", name="Hard").click()
-    ann.locator("#add-bots").get_by_role("button", name="Hard").click()
+    ann.get_by_role("button", name="Add a bot").click()
+    ann.get_by_role("button", name="Add a bot").click()
     expect(bob.locator("#lobby-heading")).to_have_text("Players (4/10)")
-    ann.get_by_role("button", name="Remove Hard Bot 2").click()
+    ann.get_by_role("button", name="Remove Bot 2").click()
     expect(ann.locator("#lobby-heading")).to_have_text("Players (3/10)")
 
     start(ann, bob)
-    bot = bob.locator("[data-log] li", has_text="Hard Bot")
+    bot = bob.locator("[data-log] li", has_text="Bot")
     while not bot.count():  # the people pick up until the bot has had a go
         for page in (ann, bob):
             draw = page.locator("[data-draw]")

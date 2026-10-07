@@ -124,7 +124,8 @@ class Room:
             raise RoomError("Unknown bot")
         for player in range(1, self.game_cls.max_players + 1):
             if player not in self.seats:
-                name = self._unique_name(f"{level.capitalize()} Bot")
+                # the level is only worth naming if there's a choice of them
+                name = self._unique_name(f"{level.capitalize()} Bot" if len(levels) > 1 else "Bot")
                 self.seats[player] = Seat(player, name, None, bot=level)
                 self.last_active = now
                 return

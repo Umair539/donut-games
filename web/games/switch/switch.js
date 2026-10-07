@@ -65,6 +65,19 @@
     return img;
   }
 
+  // The server writes cards as text, e.g. "played 5♠ 6♠". Show each suit as its donut.
+  const SUIT_OF = Object.fromEntries(SUITS.map((s) => [SYMBOLS[s], s]));
+  function withDonuts(text) {
+    return text.split(/([♠♥♦♣])/).filter(Boolean).map((part) => {
+      const s = SUIT_OF[part];
+      if (!s) return part;
+      const img = cardImg(DONUTS[s].src, ` ${DONUTS[s].name}`);
+      img.className = "sw-pip";
+      img.title = DONUTS[s].name;
+      return img;
+    });
+  }
+
   function preview(target, values) {
     const fan = el("div", "sw-preview");
     for (let i = 0; i < values.hand_size; i++) fan.append(cardImg(BACK, ""));
@@ -234,8 +247,11 @@
     q("[data-status]").textContent = status;
 
     q("[data-log]").replaceChildren(
-      ...g.log.slice().reverse().map((entry) =>
-        el("li", "", entry.player ? `${nameOf(entry.player)} ${entry.text}` : entry.text)),
+      ...g.log.slice().reverse().map((entry) => {
+        const item = el("li");
+        item.append(...withDonuts(entry.player ? `${nameOf(entry.player)} ${entry.text}` : entry.text));
+        return item;
+      }),
     );
 
     paint(root);

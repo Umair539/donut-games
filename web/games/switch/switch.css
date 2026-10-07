@@ -250,6 +250,16 @@ main:has(.sw) .game-actions {
   color: var(--text);
 }
 
+/* a suit in the log, drawn as its donut, in the line of text (not a block like card images) */
+.sw-log img.sw-pip {
+  display: inline;
+  width: 1.15em;
+  height: 1.15em;
+  margin-left: 0.05em;
+  vertical-align: -0.25em;
+  image-rendering: pixelated;
+}
+
 /* controls */
 
 .sw-suits {

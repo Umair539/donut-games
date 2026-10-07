@@ -320,7 +320,9 @@ def test_cards_only_playable_ones_light_up_and_drawing_passes(player, live_serve
     ann.locator("[data-play]").click()
 
     expect(status(bob)).to_contain_text("Your turn")
-    expect(bob.locator("[data-log] li").first).to_have_text("Ann played 5♠")
+    expect(bob.locator("[data-log] li").first).to_have_text("Ann played 5")
+    expect(bob.locator("[data-log] li").first.locator("img")).to_have_attribute(
+        "src", "sprites/choccy.png")  # the suit as its donut, not ♠
     expect(card(bob, "9♣")).to_have_class("sw-card dim")
     bob.locator("[data-draw]").click()
     expect(bob.locator(".sw-card")).to_have_count(2)  # picked up the 3♣

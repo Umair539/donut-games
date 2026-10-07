@@ -12,6 +12,7 @@ permissions:
 jobs:
   ui:
     runs-on: ubuntu-latest
+    timeout-minutes: 20 # a hung step fails the run instead of holding up a deploy for hours
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v5
@@ -19,5 +20,10 @@ jobs:
           python-version: "3.13"
           cache: pip
       - run: pip install -r requirements.txt -r requirements-ui.txt
-      - run: python -m playwright install --with-deps chromium
+      # --with-deps installs Chromium's system libraries through apt, which hangs when the
+      # runner's Ubuntu mirror is down. The runner image already has them (it comes with
+      # Chrome), so after 5 minutes install just the browser instead.
+      - run: |
+          timeout 300 python -m playwright install --with-deps chromium \
+            || python -m playwright install chromium
       - run: pytest -q tests/ui

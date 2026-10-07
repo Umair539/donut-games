@@ -100,13 +100,14 @@ def number_card(rank, holed, border):
 
 
 def face_card(rank, full, colour, border):
-    """A full donut with the letter on it, and the same again upside down."""
+    """A full donut with the letter on it, readable in the top right, and the same again
+    upside down in the bottom left."""
     donut = full.resize((full.width * 2, full.height * 2), Image.NEAREST)
     write(donut, (100, 100), rank[0].upper(), 95, fill=colour, stroke_width=6,
           stroke_fill="white")
     card = blank(border)
-    paste(card, donut, 140, 370)
-    paste(card, donut, 260, 190, flip=True)
+    paste(card, donut, 260, 190)
+    paste(card, donut, 140, 370, flip=True)
     return card
 
 

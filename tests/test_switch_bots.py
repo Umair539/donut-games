@@ -8,7 +8,7 @@ import pytest
 from Server.core.base import GameError
 from Server.bots.switch import (
     HeuristicBot, RandomBot, SearchBot, after_card, beliefs, breaks, can_draw, guess, moves,
-    plays, unseen, way_out,
+    plays, should_call, unseen, way_out,
 )
 from Server.games.switch import Switch, connects, new_deck, rank
 
@@ -199,6 +199,19 @@ def test_copy_is_separate():
     assert copy.snapshot() == game.snapshot()
     copy.apply(copy.turn, {"type": "draw"})
     assert copy.snapshot() != game.snapshot()
+
+
+@pytest.mark.parametrize("penalty, hand, calls", [
+    (True, ["5H", "9C", "KS"], False),  # no sure way out, and a failed call costs a card
+    (False, ["5H", "9C", "KS"], True),  # free to call, so a small hand is worth it
+    (False, ["5H", "9C", "KS", "4D", "8C"], False),  # too many to hope for
+    (True, ["5H", "6H"], True),  # sure to go out next go
+])
+def test_when_to_call(penalty, hand, calls):
+    game = Switch(2, call_penalty=penalty, rng=random.Random(0))
+    game.hands[1] = ["5D"] + hand
+    game.discard, game.suit, game.turn = ["4D"], "D", 1
+    assert should_call(game, 1, {"type": "play", "cards": ["5D"]}) == calls
 
 
 @pytest.mark.parametrize("hand, out", [

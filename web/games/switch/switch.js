@@ -325,7 +325,7 @@
       "2: next player picks up 2 (stacks). Chocolate or blue jack: next player picks up 5–7 (a pink or orange jack cancels it). 8: next player misses a turn (stacks). Counter an attack with the same kind of card, or take it.",
       "King: reverses direction (an odd number of kings in one turn). Queen: cover it with the same suit or another queen, or pick up 1.",
       "You can't go out on a 2, 8, J, Q, K or ace: you pick up 1 instead.",
-      "Cards! Press the red Cards button during the turn before the one you plan to go out on, then play your last cards on your next go. Everyone sees who has called. Go out without calling on your previous turn and you pick up 1 instead. Call and then don't go out on your next go and you pick up 1 too. Being skipped by an 8 doesn't use up your call.",
+      "Cards! Press the red Cards button during the turn before the one you plan to go out on, then play your last cards on your next go. Everyone sees who has called. Go out without calling on your previous turn and you pick up 1 instead. If the host switched it on, calling and then not going out on your next go costs you 1 too. Being skipped by an 8 doesn't use up your call.",
     ],
     preview,
     mount,

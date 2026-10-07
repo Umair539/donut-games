@@ -105,7 +105,8 @@ def play_game(seed, stats):
     players = rng.randint(2, 10)
     game = Switch(players, hand_size=rng.randint(1, 7), jack_penalty=rng.randint(5, 7),
                   decks=rng.randint(1, 2), force_play=rng.random() < 0.3,
-                  play_on=rng.random() < 0.5, rng=random.Random(seed + 1))
+                  play_on=rng.random() < 0.5, call_penalty=rng.random() < 0.7,
+                  rng=random.Random(seed + 1))
     entries = watch(game)
     caller = rng.choice([0.05, 0.3, 0.7])  # how keen these players are to call
 
@@ -184,7 +185,8 @@ def play_game(seed, stats):
         tried = kind == "play" and len(cards) == len(hand)
         went_out = p in game.places and p not in places
         penalties = [(who, t) for who, t in entries if t.startswith(PENALTY)]
-        should_pay = was_called and not missed and not tried and not went_out
+        should_pay = game.call_penalty and was_called and not missed and not tried \
+            and not went_out
 
         assert len(penalties) == should_pay, (kind, cards, hand, was_called, missed, entries)
         assert all(who == p for who, _ in penalties)

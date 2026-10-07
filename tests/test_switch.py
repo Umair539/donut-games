@@ -8,8 +8,10 @@ from Server.games.switch import MAX_DECKS, WIN, Switch, connects, new_deck
 
 def setup(players=2, hands=None, top="5H", pile=None, called=True, **settings):
     """A game with known cards. Player 1 starts. Everyone has called cards unless called is
-    False or lists who has, so tests about other rules can go out straight away. Pass
-    called=False when nobody goes out, or the failed call costs them a card."""
+    False or lists who has, so tests about other rules can go out straight away. A failed
+    call costs a card here unless call_penalty=False is passed, so pass called=False when
+    nobody goes out."""
+    settings.setdefault("call_penalty", True)
     game = Switch(players, rng=random.Random(0), **settings)
     for player, hand in (hands or {}).items():
         game.hands[player] = list(hand)
@@ -479,6 +481,24 @@ def test_calling_and_not_going_out_picks_up_one():
     assert game.hands[1] == ["9D", "7D"]
     assert game.log[-1] == {"player": 1, "text": "called cards but didn't go out, picked up 1"}
     assert game.view(2)["called"] == []
+
+
+def test_no_pick_up_for_a_failed_call_unless_the_host_chose_it():
+    assert Switch.validate_settings({})["call_penalty"] is False
+    game = setup(hands={1: ["5S", "6S", "9D"], 2: ["9C", "9H"]}, pile=["7D", "3C"],
+                 called=False, call_penalty=False)
+    call(game)
+    play(game, "5S")
+    draw(game)
+    play(game, "6S")  # cards left, so the call failed, but it costs nothing
+    assert game.hands[1] == ["9D"]
+    assert game.view(2)["called"] == []  # the call is still used up
+
+
+def test_going_out_without_calling_still_picks_up_without_the_call_penalty():
+    game = setup(hands={1: ["5S"], 2: ["9C"]}, pile=["7D"], called=False, call_penalty=False)
+    play(game, "5S")
+    assert game.hands[1] == ["7D"]
 
 
 def test_calling_and_drawing_picks_up_one_more():

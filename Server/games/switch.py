@@ -80,6 +80,8 @@ class Switch(BaseGame):
          "default": False},
         {"key": "play_on", "label": "Keep playing for 2nd, 3rd...", "type": "bool",
          "default": False},
+        {"key": "call_penalty", "label": "Pick up 1 for calling and not going out",
+         "type": "bool", "default": False},
         *TIMER_SETTINGS,
     ]
 
@@ -88,7 +90,7 @@ class Switch(BaseGame):
         return cls(num_players, **settings)
 
     def __init__(self, players, hand_size=7, jack_penalty=5, decks=1, force_play=False,
-                 play_on=False, timer=False, turn_seconds=20, rng=None):
+                 play_on=False, call_penalty=False, timer=False, turn_seconds=20, rng=None):
         if not _is_int(players) or not self.min_players <= players <= self.max_players:
             raise GameError(f"Need {self.min_players} to {self.max_players} players")
         if not _is_int(hand_size) or not 1 <= hand_size <= 7:
@@ -101,6 +103,8 @@ class Switch(BaseGame):
             raise GameError("Invalid value for must play if you can")
         if not isinstance(play_on, bool):
             raise GameError("Invalid value for keep playing")
+        if not isinstance(call_penalty, bool):
+            raise GameError("Invalid value for picking up after calling")
         check_timer(timer, turn_seconds)
 
         self.num_players = players
@@ -109,6 +113,7 @@ class Switch(BaseGame):
         self.start_decks = max(decks, 2 if players >= BIG_GAME else 1)
         self.force_play = force_play
         self.play_on = play_on  # after someone goes out, the rest play on for places
+        self.call_penalty = call_penalty  # calling cards and not going out costs a card
         self.rng = rng or random.Random()
         self.gone = set()  # players who left
         self.round = 1
@@ -227,6 +232,7 @@ class Switch(BaseGame):
             "start_decks": self.start_decks,
             "force_play": self.force_play,
             "play_on": self.play_on,
+            "call_penalty": self.call_penalty,
             "gone": sorted(self.gone),
             "round": self.round,
             "decks": self.decks,
@@ -268,7 +274,9 @@ class Switch(BaseGame):
         """The shuffle order isn't kept: a fresh random generator is as good as the old one."""
         game = cls(data["num_players"], hand_size=data["hand_size"],
                    jack_penalty=data["jack_penalty"], decks=data["start_decks"],
-                   force_play=data["force_play"], play_on=data["play_on"])
+                   force_play=data["force_play"], play_on=data["play_on"],
+                   # games saved before this was a setting always had the penalty
+                   call_penalty=data.get("call_penalty", True))
         game.gone = set(data["gone"])
         game.round = data["round"]
         game.decks = data["decks"]
@@ -452,9 +460,11 @@ class Switch(BaseGame):
     def _advance(self, missed=False, tried=False):
         """Pass the turn on. A missed turn (from an 8) isn't a go, so a call made on the
         turn before it still counts for the player's next real go. Not going out on that go
-        costs a card, unless the player already picked one up for trying (tried)."""
+        costs a card if the host chose that, unless the player already picked one up for
+        trying (tried)."""
         player = self.turn
-        if player in self.called and not missed and not tried and self.hands[player]:
+        if (self.call_penalty and player in self.called and not missed and not tried
+                and self.hands[player]):
             got = self._draw(player, 1)
             self._log(player, f"called cards but didn't go out, picked up {got}")
         if self.calling:

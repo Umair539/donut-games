@@ -213,17 +213,36 @@ def _way_out(hand):
     return any(finish(card, hand[:i] + hand[i + 1:]) for i, card in enumerate(hand))
 
 
-def should_call(game, player, action):
-    """Call cards when this move leaves a hand that can all go next turn."""
-    if game.calling or action["type"] != "play":
-        return False
+# With no penalty for a failed call, call on hands this small anyway. Calling more freely won
+# about 1 to 2% more games; the size made no difference, so this keeps calls believable.
+FREE_CALL_SIZE = 3
+
+
+def leaves(game, player, action):
+    """The cards a move leaves in hand, not counting any picked up."""
     left = Counter(game.hands[player])
-    left.subtract(action["cards"])
-    left = list(left.elements())
-    last = action["cards"][-1]
-    if not left or rank(last) == "Q":  # going out now, or picking up for the queen
+    if action["type"] == "play":
+        left.subtract(action["cards"])
+    return list(left.elements())
+
+
+def sure_out(game, player, action):
+    """Whether this move leaves a hand that can all go next turn."""
+    if action["type"] != "play" or rank(action["cards"][-1]) == "Q":  # Q: picks up 1
         return False
-    return way_out(left)
+    left = leaves(game, player, action)
+    return bool(left) and way_out(left)
+
+
+def should_call(game, player, action):
+    """Call cards when this move leaves a hand that can all go next turn. When a failed call
+    costs nothing, small hands are worth a call too, in case the next go goes well."""
+    if game.calling:
+        return False
+    if sure_out(game, player, action):
+        return True
+    left = leaves(game, player, action)
+    return not game.call_penalty and 0 < len(left) <= FREE_CALL_SIZE
 
 
 def turn(game, player, action):
@@ -329,7 +348,7 @@ def score(before, player, action, calls, w=DEFAULT_WEIGHTS):
         hurt = w.hurt[game.pending["kind"]] * game.pending["count"]
         threat = w.threat if len(game.hands[victim]) <= 2 or victim in game.called else 1
         value += min(hurt, w.hurt_cap) * threat
-    if calls:
+    if calls and sure_out(before, player, action):
         value += w.call
     return value
 

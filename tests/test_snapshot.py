@@ -21,7 +21,7 @@ from Server.core.rooms import (
 )
 from Server.games import GAMES
 from Server.games.connect4 import Connect4
-from Server.games.switch import EIGHTS, Switch
+from Server.games.switch import EIGHTS, MISTAKES, Switch
 
 
 def through_json(data):
@@ -84,7 +84,7 @@ def test_switch_round_trip_anywhere_in_a_game(seed):
     players = rng.randint(2, 10)
     game = Switch(players, hand_size=rng.randint(1, 7), play_on=rng.random() < 0.5,
                   force_play=rng.random() < 0.5, eights=EIGHTS[seed % len(EIGHTS)],
-                  rng=random.Random(seed))
+                  mistakes=MISTAKES[seed // len(EIGHTS) % len(MISTAKES)], rng=random.Random(seed))
     random_switch_moves(game, rng, rng.randint(0, 120))
     if not game.over and len(game._active()) > 2 and rng.random() < 0.5:
         game.player_left(rng.choice(game._active()))
@@ -111,9 +111,10 @@ def test_switch_keeps_types_through_json():
 
 
 def test_switch_saved_before_the_eights_setting_stacks_them():
-    data = Switch(3, eights="replace").snapshot()
-    del data["eights"]
-    assert Switch.restore(data).eights == "stack"
+    data = Switch(3, eights="replace", mistakes="keep").snapshot()
+    del data["eights"], data["mistakes"]
+    game = Switch.restore(data)
+    assert game.eights == "stack" and game.mistakes == "blocked"  # the rules they began with
 
 
 def test_switch_rejects_hands_that_dont_match_the_players():

@@ -6,7 +6,8 @@ from playwright.sync_api import expect
 
 
 def host(page, title, toggles=(), **sliders):
-    """Pick a game on the home screen, set it up and create it. Returns the room code."""
+    """Pick a game on the home screen, set it up and create it. Returns the room code.
+    toggles are the labels of switches and options to tick."""
     page.locator(".game-option", has_text=title).click()
     for label in toggles:
         page.get_by_label(label).check()
@@ -62,10 +63,10 @@ def connect4_game(player):
     return ann, bob, code
 
 
-def cards_game(player, live_server, names, hands, top, pile=None, called=()):
+def cards_game(player, live_server, names, hands, top, pile=None, called=(), toggles=()):
     """A Donut Cards game where player 1 goes first and everyone holds the given cards."""
     pages = [player(name) for name in names]
-    code = host(pages[0], "Donut Cards")
+    code = host(pages[0], "Donut Cards", toggles)
     for page in pages[1:]:
         join(page, code)
     start(*pages)
@@ -148,7 +149,8 @@ def test_lobby_shows_who_is_here_and_only_the_host_can_start(player):
 def test_choices_are_explained_and_the_lobby_lists_them(player):
     ann = player("Ann")
     ann.locator(".game-option", has_text="Donut Cards").click()
-    expect(ann.locator(".setting-choice")).to_contain_text("The skips add up")
+    eights = ann.locator(".setting-choice", has_text="Answering an 8")
+    expect(eights).to_contain_text("The skips add up")
     expect(ann.get_by_label("Stack")).to_be_checked()
     expect(ann.get_by_label("Seconds per turn")).to_be_hidden()  # only with the timer on
     ann.get_by_label("Turn timer").check()
@@ -328,9 +330,22 @@ def test_game_carries_on_through_a_server_restart(player, live_server):
 # ---- Donut Cards
 
 
+def test_cards_mistakes_come_back_with_a_pick_up(player, live_server):
+    (ann, bob), _ = cards_game(player, live_server, ["Ann", "Bob"],
+                               {1: ["5S", "KD"], 2: ["9C"]}, top="4S", pile=["7H"])
+    expect(card(ann, "K♦")).not_to_have_class("sw-card dim")  # nothing gives it away
+    card(ann, "K♦").click()
+    ann.locator("[data-play]").click()
+    expect(bob.locator("[data-log] li").first).to_have_text("Ann picked up 1 for the mistake")
+    expect(bob.locator("[data-log] li").nth(1)).to_contain_text("which doesn't go")
+    expect(ann.locator(".sw-card")).to_have_count(3)  # the K♦ back, and the 7♥
+    expect(status(bob)).to_contain_text("Your turn")
+
+
 def test_cards_only_playable_ones_light_up_and_drawing_passes(player, live_server):
     (ann, bob), _ = cards_game(player, live_server, ["Ann", "Bob"],
-                               {1: ["5S", "KD"], 2: ["9C"]}, top="4S", pile=["7H", "3C"])
+                               {1: ["5S", "KD"], 2: ["9C"]}, top="4S", pile=["7H", "3C"],
+                               toggles=["Not allowed"])
     expect(card(ann, "K♦")).to_have_class("sw-card dim")  # can't go on 4♠
     card(ann, "5♠").click()
     expect(card(ann, "5♠")).to_contain_text("1")  # shows the order cards will be played in

@@ -285,8 +285,9 @@
         button.type = "button";
         button.append(cardImg(image(card), label(card)));
         const order = selected.indexOf(i);
-        const pickable = turn && order === -1 &&
-          (last === null ? canStart(card, g) : connects(last, card));
+        // when the host allows mistakes, spotting what goes is up to you
+        const pickable = turn && order === -1 && (g.mistakes !== "blocked" ||
+          (last === null ? canStart(card, g) : connects(last, card)));
         if (order !== -1) {
           button.classList.add("selected");
           button.append(el("span", "sw-order", String(order + 1)));
@@ -338,6 +339,7 @@
       "2: next player picks up 2 (stacks). Chocolate or blue jack: next player picks up 5, or what the host chose (a pink or orange jack cancels it). 8: next player misses a turn. Counter an attack with the same kind of card, or take it. Whether 8s answered with 8s add up, start again or can't be answered at all is the host's choice, shown in the lobby.",
       "King: reverses direction when your turn ends on it (an odd number of kings at the end: K or K K K, not K K). The player whose name is outlined in orange goes next. Queen: cover it with the same suit or another queen, or pick up 1.",
       "You can't go out on a 2, 8, J, Q, K or ace: you pick up 1 instead.",
+      "Play a card that doesn't go (if the host allows it) and it comes back to you with a pick-up of 1, plus any attack you were facing. Depending on the host's choice, the cards before it stay played or come back too.",
       "Cards! Press the red Cards button during the turn before the one you plan to go out on, then play your last cards on your next go. Everyone sees who has called. Go out without calling on your previous turn and you pick up 1 instead. If the host switched it on, calling and then not going out on your next go costs you 1 too. Being skipped by an 8 doesn't use up your call.",
     ],
     preview,

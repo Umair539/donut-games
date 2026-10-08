@@ -12,6 +12,7 @@ def setup(players=2, hands=None, top="5H", pile=None, called=True, **settings):
     call costs a card here unless call_penalty=False is passed, so pass called=False when
     nobody goes out."""
     settings.setdefault("call_penalty", True)
+    settings.setdefault("mistakes", "blocked")  # so a wrong play is an error to check for
     game = Switch(players, rng=random.Random(0), **settings)
     for player, hand in (hands or {}).items():
         game.hands[player] = list(hand)
@@ -252,6 +253,84 @@ def test_an_eight_straight_away_with_two_players_comes_back_round():
     game = setup(eights="immediate", called=False, hands={1: ["8H", "4C"], 2: ["8S", "9C"]})
     play(game, "8H")
     assert game.turn == 1 and game.pending is None
+
+
+# ---- playing a card that doesn't go
+
+def test_mistakes_allowed_by_default():
+    assert Switch.validate_settings({})["mistakes"] == "keep"
+
+
+def test_a_wrong_first_card_goes_back_and_costs_one():
+    for mistakes in ("keep", "undo"):
+        game = setup(mistakes=mistakes, called=False, pile=["7D"],
+                     hands={1: ["9C", "4C"], 2: ["9D"]})
+        play(game, "9C")
+        assert sorted(game.hands[1]) == ["4C", "7D", "9C"]
+        assert game.discard == ["5H"] and game.turn == 2
+        assert game.log[-1] == {"player": 1, "text": "picked up 1 for the mistake"}
+
+
+def test_a_mistake_keeps_the_good_cards():
+    game = setup(mistakes="keep", called=False, pile=["7D"], top="4S",
+                 hands={1: ["5S", "6S", "9D", "3C"], 2: ["9H"]})
+    play(game, "5S", "6S", "9D")
+    assert sorted(game.hands[1]) == ["3C", "7D", "9D"]
+    assert game.discard[-1] == "6S" and game.suit == "S" and game.turn == 2
+
+
+def test_a_mistake_brings_the_whole_play_back():
+    game = setup(mistakes="undo", called=False, pile=["7D"], top="4S",
+                 hands={1: ["5S", "6S", "9D", "3C"], 2: ["9H"]})
+    play(game, "5S", "6S", "9D")
+    assert sorted(game.hands[1]) == ["3C", "5S", "6S", "7D", "9D"]
+    assert game.discard == ["4S"] and game.suit == "S"
+
+
+def test_good_cards_kept_before_a_mistake_still_attack():
+    game = setup(players=3, mistakes="keep", called=False, pile=["7D"], top="4S",
+                 hands={1: ["2S", "9D", "3C"], 2: ["9H"], 3: ["9C"]})
+    play(game, "2S", "9D")
+    assert game.pending == {"kind": "two", "count": 2} and game.turn == 2
+
+
+def test_an_ace_kept_before_a_mistake_keeps_its_own_suit():
+    game = setup(mistakes="keep", called=False, pile=["7D"],
+                 hands={1: ["AC", "9D", "3C"], 2: ["9H"]})
+    play(game, "AC", "9D", suit="H")
+    assert game.suit == "C"
+
+
+def test_a_mistake_under_attack_takes_the_attack_too():
+    game = setup(mistakes="keep", called=False, pile=["7D", "6D", "5D"],
+                 hands={1: ["9C", "4C"], 2: ["9D"]})
+    game.pending = {"kind": "two", "count": 2}
+    play(game, "9C")
+    assert len(game.hands[1]) == 2 + 3 and game.pending is None
+
+
+def test_a_mistake_under_an_eight_misses_the_turn_and_picks_up():
+    game = setup(players=3, mistakes="keep", called=False, pile=["7D"],
+                 hands={1: ["9C", "4C"], 2: ["9D"], 3: ["9H"]})
+    game.pending = {"kind": "skip", "count": 2}
+    play(game, "9C")
+    assert len(game.hands[1]) == 3 and game.turn == 2
+    assert game.pending == {"kind": "skip", "count": 1}
+
+
+def test_answering_an_attack_then_a_mistake_only_costs_one():
+    game = setup(players=3, mistakes="keep", called=False, pile=["7D"],
+                 hands={1: ["2C", "9D", "4C"], 2: ["9H"], 3: ["9S"]})
+    game.pending = {"kind": "two", "count": 2}
+    play(game, "2C", "9D")
+    assert sorted(game.hands[1]) == ["4C", "7D", "9D"]
+    assert game.pending == {"kind": "two", "count": 4} and game.turn == 2
+
+
+def test_you_still_cant_play_cards_you_dont_have():
+    game = setup(mistakes="keep", hands={1: ["9C"], 2: ["9D"]})
+    with pytest.raises(GameError):
+        play(game, "9H")
 
 
 def test_an_eight_straight_away_followed_by_another_card_does_nothing():

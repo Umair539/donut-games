@@ -26,6 +26,13 @@ REPLACE = "replace"
 IMMEDIATE = "immediate"
 EIGHTS = (STACK, REPLACE, IMMEDIATE)
 
+# what playing a card that doesn't go does: it can't be done, or it costs a pick-up and the
+# cards before it stay played, or the whole play comes back
+BLOCKED = "blocked"
+KEEP = "keep"
+UNDO = "undo"
+MISTAKES = (BLOCKED, KEEP, UNDO)
+
 PLAYING = "playing"
 WIN = "win"
 
@@ -94,6 +101,16 @@ class Switch(BaseGame):
               "help": "An 8 can't be answered: the next player is skipped at once. Two 8s skip "
                       "the next 2 players."},
          ]},
+        {"key": "mistakes", "label": "Playing a card that doesn't go", "type": "choice",
+         "default": KEEP, "options": [
+             {"value": KEEP, "label": "Allowed, good cards stay",
+              "help": "Cards aren't greyed out. A wrong card goes back in your hand and you pick "
+                      "up 1, plus any attack you were facing. Cards before it stay played."},
+             {"value": UNDO, "label": "Allowed, whole play comes back",
+              "help": "The same, but every card you tried to play goes back in your hand."},
+             {"value": BLOCKED, "label": "Not allowed",
+              "help": "Only cards that go can be picked, so nobody makes a mistake."},
+         ]},
         {"key": "force_play", "label": "Must play if you can", "type": "bool",
          "default": False},
         {"key": "play_on", "label": "Keep playing for 2nd, 3rd...", "type": "bool",
@@ -108,8 +125,8 @@ class Switch(BaseGame):
         return cls(num_players, **settings)
 
     def __init__(self, players, hand_size=7, jack_penalty=5, decks=1, eights=STACK,
-                 force_play=False, play_on=False, call_penalty=False, timer=False,
-                 turn_seconds=20, rng=None):
+                 mistakes=KEEP, force_play=False, play_on=False, call_penalty=False,
+                 timer=False, turn_seconds=20, rng=None):
         if not _is_int(players) or not self.min_players <= players <= self.max_players:
             raise GameError(f"Need {self.min_players} to {self.max_players} players")
         if not _is_int(hand_size) or not 1 <= hand_size <= 7:
@@ -120,6 +137,8 @@ class Switch(BaseGame):
             raise GameError("Decks must be 1 or 2")
         if eights not in EIGHTS:
             raise GameError("Invalid value for answering an 8")
+        if mistakes not in MISTAKES:
+            raise GameError("Invalid value for playing a card that doesn't go")
         if not isinstance(force_play, bool):
             raise GameError("Invalid value for must play if you can")
         if not isinstance(play_on, bool):
@@ -133,6 +152,7 @@ class Switch(BaseGame):
         self.jack_penalty = jack_penalty
         self.start_decks = max(decks, 2 if players >= BIG_GAME else 1)
         self.eights = eights
+        self.mistakes = mistakes
         self.force_play = force_play
         self.play_on = play_on  # after someone goes out, the rest play on for places
         self.call_penalty = call_penalty  # calling cards and not going out costs a card
@@ -220,6 +240,7 @@ class Switch(BaseGame):
             "pile": len(self.pile),
             "decks": self.decks,
             "force": self.force,
+            "mistakes": self.mistakes,
             "status": self.status,
             "winner": self.winner,
             "places": list(self.places),
@@ -253,6 +274,7 @@ class Switch(BaseGame):
             "jack_penalty": self.jack_penalty,
             "start_decks": self.start_decks,
             "eights": self.eights,
+            "mistakes": self.mistakes,
             "force_play": self.force_play,
             "play_on": self.play_on,
             "call_penalty": self.call_penalty,
@@ -297,7 +319,8 @@ class Switch(BaseGame):
         """The shuffle order isn't kept: a fresh random generator is as good as the old one."""
         game = cls(data["num_players"], hand_size=data["hand_size"],
                    jack_penalty=data["jack_penalty"], decks=data["start_decks"],
-                   eights=data.get("eights", STACK),  # games saved before it was a setting
+                   # games saved before these were settings
+                   eights=data.get("eights", STACK), mistakes=data.get("mistakes", BLOCKED),
                    force_play=data["force_play"], play_on=data["play_on"],
                    # games saved before this was a setting always had the penalty
                    call_penalty=data.get("call_penalty", True))
@@ -339,39 +362,18 @@ class Switch(BaseGame):
             if card not in remaining:
                 raise GameError("You don't have that card")
             remaining.remove(card)
-        if not self.can_start(cards[0]):
-            raise GameError(self._hint())
-        for prev, card in zip(cards, cards[1:]):
-            if not connects(prev, card):
-                raise GameError(f"{show([card])} can't follow {show([prev])}")
+        wrong = self._first_wrong(cards)
+        if wrong is not None:
+            if self.mistakes == BLOCKED:
+                raise GameError(self._hint() if wrong == 0 else
+                                f"{show([cards[wrong]])} can't follow {show([cards[wrong - 1]])}")
+            self._mistake(player, cards, wrong)
+            return
         last = cards[-1]
         if rank(last) == "A" and chosen not in SUITS:
             raise GameError("Choose a suit for your ace")
 
-        # played in order: attacks build up, and any other card ends them
-        pending = self._incoming()
-        kings = 0  # kings at the end of the turn so far: an odd number reverses play
-        for card in cards:
-            kings = kings + 1 if rank(card) == "K" else 0
-            pending = self._after(pending, card)
-        skips = 0
-        if self.eights == IMMEDIATE and pending and pending["kind"] == SKIP:
-            skips, pending = pending["count"], None  # nobody gets the chance to answer
-
-        self.hands[player] = remaining
-        self.discard.extend(cards)
-        self.history.append(("play", player, tuple(cards)))
-        self.pending = pending
-        self.suit = chosen if rank(last) == "A" else suit(last)
-
-        text = f"played {show(cards)}"
-        if rank(last) == "A":
-            text += f" and asked for {DONUTS[chosen]}"
-        if kings % 2:
-            self.direction = -self.direction
-            text += ", reversing play"
-        self._log(player, text)
-
+        skips = self._put_down(player, cards, chosen)
         tried = not remaining  # played their last card, before any pick-up below
         if not remaining and rank(last) in POWER:
             self._draw(player, 1)
@@ -387,6 +389,69 @@ class Switch(BaseGame):
             self._went_out(player)
         else:
             self._advance(tried=tried, skips=skips)
+
+    def _first_wrong(self, cards):
+        """Where the first card that doesn't go is in a play, or None if they all go."""
+        if not self.can_start(cards[0]):
+            return 0
+        for i in range(1, len(cards)):
+            if not connects(cards[i - 1], cards[i]):
+                return i
+        return None
+
+    def _put_down(self, player, cards, chosen):
+        """Move cards that go from player's hand onto the discards and do what they do.
+        chosen is the suit asked for by an ace at the end, or None to keep the ace's own.
+        Returns how many players 8s skip straight away."""
+        # played in order: attacks build up, and any other card ends them
+        pending = self._incoming()
+        kings = 0  # kings at the end of the turn so far: an odd number reverses play
+        for card in cards:
+            kings = kings + 1 if rank(card) == "K" else 0
+            pending = self._after(pending, card)
+        skips = 0
+        if self.eights == IMMEDIATE and pending and pending["kind"] == SKIP:
+            skips, pending = pending["count"], None  # nobody gets the chance to answer
+
+        hand = list(self.hands[player])
+        for card in cards:
+            hand.remove(card)
+        self.hands[player] = hand
+        self.discard.extend(cards)
+        self.history.append(("play", player, tuple(cards)))
+        self.pending = pending
+        last = cards[-1]
+        self.suit = chosen if rank(last) == "A" and chosen else suit(last)
+
+        text = f"played {show(cards)}"
+        if rank(last) == "A" and chosen:
+            text += f" and asked for {DONUTS[chosen]}"
+        if kings % 2:
+            self.direction = -self.direction
+            text += ", reversing play"
+        self._log(player, text)
+        return skips
+
+    def _mistake(self, player, cards, wrong):
+        """A play with a card that doesn't go, at cards[wrong]. The cards before it stay
+        played if the host chose that, and the rest go back in the hand. It costs a pick-up of
+        1, on top of any attack that wasn't answered. A queen left uncovered by it costs
+        nothing more: the mistake was the failed cover."""
+        kept = cards[:wrong] if self.mistakes == KEEP else []
+        skips = self._put_down(player, kept, None) if kept else 0
+        self._log(player, f"tried {show(cards[len(kept):])}, which doesn't go")
+        pending = self.pending if not kept else None  # kept cards answered any attack
+        if pending and pending["kind"] == SKIP:
+            left = pending["count"] - 1  # the rest of the skips move on to the next player
+            self.pending = {"kind": SKIP, "count": left} if left else None
+            self._log(player, "missed a turn")
+        elif pending:
+            got = self._draw(player, pending["count"])
+            self.pending = None
+            self._log(player, f"picked up {got}")
+        got = self._draw(player, 1)
+        self._log(player, f"picked up {got} for the mistake")
+        self._advance(skips=skips)  # a real go, so it uses up a call like any other
 
     def timeout(self, player):
         self._draw_instead(player, timed_out=True)

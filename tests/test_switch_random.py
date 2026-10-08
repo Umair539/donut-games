@@ -11,7 +11,9 @@ from collections import Counter
 import pytest
 
 from Server.core.base import GameError
-from Server.games.switch import EIGHTS, POWER, SKIP, SUITS, Switch, connects, new_deck, rank
+from Server.games.switch import (
+    EIGHTS, MISTAKES, POWER, SKIP, SUITS, Switch, connects, new_deck, rank,
+)
 
 GAMES = int(os.environ.get("SWITCH_GAMES", 50))
 FIRST_SEED = int(os.environ.get("SWITCH_FIRST_SEED", 0))
@@ -62,6 +64,20 @@ def random_run(game, hand, rng):
     return cards
 
 
+def wrong_play(game, hand, rng):
+    """A play with a card that doesn't go, as (cards, where the wrong one is), or None."""
+    run = random_run(game, hand, rng)
+    if run:
+        left = list(hand)
+        for card in run:
+            left.remove(card)
+        bad = [c for c in left if not connects(run[-1], c)]
+        if bad:
+            return run + [rng.choice(bad)], len(run)
+    bad = [c for c in hand if not game.can_start(c)]
+    return ([rng.choice(bad)], 0) if bad else None
+
+
 def picked_up(entries, player):
     """How many cards the log says the player picked up."""
     total = 0
@@ -106,7 +122,9 @@ def play_game(seed, stats):
     game = Switch(players, hand_size=rng.randint(1, 7), jack_penalty=rng.randint(1, 7),
                   decks=rng.randint(1, 2), force_play=rng.random() < 0.3,
                   play_on=rng.random() < 0.5, call_penalty=rng.random() < 0.7,
-                  eights=EIGHTS[seed % len(EIGHTS)], rng=random.Random(seed + 1))
+                  eights=EIGHTS[seed % len(EIGHTS)],
+                  mistakes=MISTAKES[seed // len(EIGHTS) % len(MISTAKES)],
+                  rng=random.Random(seed + 1))
     entries = watch(game)
     caller = rng.choice([0.05, 0.3, 0.7])  # how keen these players are to call
 
@@ -141,7 +159,10 @@ def play_game(seed, stats):
 
         # pick a move
         out = way_out(game, hand)
-        if out and rng.random() < 0.85:
+        wrong = game.mistakes != "blocked" and rng.random() < 0.1 and wrong_play(game, hand, rng)
+        if wrong:
+            kind, (cards, wrong_at) = "wrong", wrong
+        elif out and rng.random() < 0.85:
             kind, cards = "play", out
         elif rng.random() < 0.7:
             cards = random_run(game, hand, rng)
@@ -156,7 +177,7 @@ def play_game(seed, stats):
             kind = "timeout"
 
         # maybe call first, which doesn't end the turn
-        left_after = [c for c in hand if c not in (cards or [])] if kind == "play" else hand
+        left_after = [c for c in hand if c not in (cards or [])] if kind != "draw" else hand
         keen = caller if len(left_after) <= 3 else caller / 5
         if not game.calling and rng.random() < keen:
             entries.clear()
@@ -169,10 +190,11 @@ def play_game(seed, stats):
         # the move itself, with everything needed to check it afterwards
         was_called = p in game.called
         calling = game.calling
-        missed = kind != "play" and bool(game.pending) and game.pending["kind"] == SKIP
+        missed = kind in ("draw", "timeout") and bool(game.pending) and \
+            game.pending["kind"] == SKIP
         places = list(game.places)
         entries.clear()
-        if kind == "play":
+        if kind in ("play", "wrong"):
             action = {"type": "play", "cards": cards}
             if rank(cards[-1]) == "A":
                 action["suit"] = rng.choice(SUITS)
@@ -192,8 +214,13 @@ def play_game(seed, stats):
         assert all(who == p for who, _ in penalties)
         assert went_out == (tried and was_called and rank(cards[-1]) not in POWER)
         assert Counter(new_deck() * game.decks) == all_cards(game)
+        if kind == "wrong":
+            assert not went_out and (p, "picked up 1 for the mistake") in entries or not game.pile
+            stats["mistakes"] += 1
         if game.pile and not went_out:  # nothing ran short, so every pick-up landed
             played = len(cards) if kind == "play" else 0
+            if kind == "wrong":
+                played = wrong_at if game.mistakes == "keep" else 0
             assert len(game.hands[p]) == len(hand) - played + picked_up(entries, p)
         if not game.over:
             assert not game.calling and game.turn in game._active()
@@ -220,6 +247,6 @@ def test_random_games():
     print(f"\n{GAMES} games: {dict(stats)}")
     # every part of the calling rule actually came up
     for key in ("penalties", "outs after calling", "calls kept through a skip",
-                "power card go-outs", "left"):
+                "power card go-outs", "left", "mistakes"):
         assert stats[key], key
     assert stats["unfinished"] <= GAMES // 50

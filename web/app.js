@@ -330,6 +330,39 @@ function openCreate(info) {
     const wrap = document.createElement("div");
     wrap.className = "setting";
 
+    if (setting.type === "choice") {
+      const group = document.createElement("fieldset");
+      group.className = "setting-choice";
+      const legend = document.createElement("legend");
+      legend.textContent = setting.label;
+      group.append(legend);
+      const inputs = setting.options.map((option) => {
+        const label = document.createElement("label");
+        const input = document.createElement("input");
+        input.type = "radio";
+        input.name = `set-${setting.key}`;
+        input.value = option.value;
+        input.checked = option.value === setting.default;
+        input.addEventListener("change", refreshSettings);
+        const text = document.createElement("span");
+        const name = document.createElement("strong");
+        name.textContent = option.label;
+        text.append(name);
+        if (option.help) {
+          const help = document.createElement("small");
+          help.textContent = option.help;
+          text.append(help);
+        }
+        label.append(input, text);
+        group.append(label);
+        return input;
+      });
+      controls[setting.key] = { inputs, wrap };
+      wrap.append(group);
+      form.append(wrap);
+      continue;
+    }
+
     if (setting.type === "bool") {
       const label = document.createElement("label");
       label.className = "setting-toggle";
@@ -338,7 +371,7 @@ function openCreate(info) {
       input.checked = setting.default;
       input.addEventListener("change", refreshSettings);
       label.append(input, " " + setting.label);
-      controls[setting.key] = { input };
+      controls[setting.key] = { input, wrap };
       wrap.append(label);
       form.append(wrap);
       continue;
@@ -358,7 +391,7 @@ function openCreate(info) {
     input.value = setting.default;
     input.addEventListener("input", refreshSettings);
 
-    controls[setting.key] = { input, output };
+    controls[setting.key] = { input, output, wrap };
     wrap.append(label, input);
     form.append(wrap);
   }
@@ -370,6 +403,11 @@ function refreshSettings() {
   for (const setting of creating.settings) {
     const control = controls[setting.key];
     if (!control) continue;
+    control.wrap.hidden = !applies(setting, values);
+    if (setting.type === "choice") {
+      values[setting.key] = control.inputs.find((input) => input.checked).value;
+      continue;
+    }
     if (setting.type === "bool") {
       values[setting.key] = control.input.checked;
       continue;
@@ -396,10 +434,24 @@ $("create-form").addEventListener("submit", (e) => {
 
 // ---------- lobby ----------
 
+// whether a setting means anything with the others as they are, e.g. seconds per turn only
+// with the turn timer on
+function applies(setting, settings) {
+  return !setting.only_if || Boolean(settings[setting.only_if]);
+}
+
+// one line for each setting that applies, as [label, value shown]
 function describeSettings(info, settings) {
-  if (!info) return "";
-  const shown = (value) => (value === true ? "Yes" : value === false ? "No" : value);
-  return info.settings.map((s) => `${s.label}: ${shown(settings[s.key])}`).join(" · ");
+  if (!info) return [];
+  const shown = (setting, value) => {
+    if (value === true) return "Yes";
+    if (value === false) return "No";
+    const option = (setting.options || []).find((o) => o.value === value);
+    return option ? option.label : String(value);
+  };
+  return info.settings
+    .filter((s) => applies(s, settings))
+    .map((s) => [s.label, shown(s, settings[s.key])]);
 }
 
 function renderLobby() {
@@ -410,7 +462,17 @@ function renderLobby() {
 
   $("lobby-game").textContent = info ? info.title : state.game;
   $("lobby-code").textContent = state.code;
-  $("lobby-settings").textContent = describeSettings(info, state.settings);
+  $("lobby-settings").replaceChildren(
+    ...describeSettings(info, state.settings).map(([label, value]) => {
+      const item = document.createElement("li");
+      const name = document.createElement("span");
+      name.textContent = label;
+      const shown = document.createElement("strong");
+      shown.textContent = value;
+      item.append(name, shown);
+      return item;
+    }),
+  );
   $("lobby-heading").textContent = `Players (${count}/${state.max_players})`;
 
   $("lobby-players").replaceChildren(

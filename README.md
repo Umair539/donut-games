@@ -138,23 +138,23 @@ Each donut colour is a suit: chocolate is spades ♠, blue is clubs ♣, pink is
 
 By default the first player out wins and the round ends. With *Keep playing for 2nd, 3rd...* switched on, players who go out watch while the rest play on for places, until only one is left.
 
-On your turn you either **play** or **draw**. Your first card must match the top card's suit or rank, or be an ace. You can then keep adding cards in the same turn as long as each one *connects* to the card before it: the same rank, or the same suit one step up or down (an ace sits next to both the 2 and the king). An ace is only wild as your first card. Later in the turn it has to connect like any other card.
+On your turn you either **play** or **pick up**. Your first card must match the top card's suit or rank, or be an ace. You can then keep adding cards in the same turn as long as each one *connects* to the card before it: the same rank, or the same suit one step up or down (an ace sits next to both the 2 and the king). An ace is only wild as your first card. Later in the turn it has to connect like any other card.
 
 | Card | Effect |
 | --- | --- |
 | **Ace** | Wild as the first card of your turn: play it on anything. If an ace is the last card of your turn, pick the suit the next player must follow. Otherwise keep going from it, e.g. A♠ then 2♠ or K♠. |
 | **2** | The next player picks up 2, unless they play a 2 and pass on the total. |
-| **8** | The next player misses a turn, unless they play an 8. Each 8 skips one more player. |
+| **8** | The next player misses a turn. Two 8s skip two players, and so on. What answering an 8 with your own 8s does is a setting: *Stack* (the default) adds yours on, so two 8s answered with one skip the next 3 players; *Replace* starts again from yours, so only the player after you is skipped; *Skip straight away* means an 8 can't be answered at all. |
 | **Chocolate or blue jack** | The next player picks up 5 (the host can choose 5 to 7), unless they play a chocolate or blue jack to pass it on, or a pink or orange jack to cancel it. |
 | **Queen** | Must be covered in the same turn by a card of its suit, or by another queen (which then needs covering too). If you can't cover it, you pick up 1. |
-| **King** | Reverses play. Two kings in one turn keep the same direction, three reverse it, four keep it. |
+| **King** | Reverses play, but only if your turn ends on it. Kings at the end of a turn cancel out in pairs: K or K K K reverses, K K or K K K K doesn't, and K Q♠ 3♠ doesn't either. Whoever plays next is outlined in orange. |
 
 * An attack (2s, 8s or chocolate and blue jacks) only reaches the next player if it is at the end of your turn. If you answer one and then carry on with other cards, it stops there.
 * Aces can't be used to answer an attack.
 * You can't go out on a power card (A, 2, 8, J, Q, K). If you try, you pick up 1.
 * **Cards!** Press the Cards button on the turn before the one you plan to go out on, then play all your remaining cards on your next go. Everyone sees a *Cards!* badge next to your name until then, so they can try to stop you. If you go out without having called on your previous turn, you pick up 1 instead. With *Pick up 1 for calling and not going out* switched on (it's off by default), calling and then not going out on your next go costs 1 too (just the 1 if you played your last card but couldn't go out on it). Calling and going out on the same turn doesn't count. Being skipped by an 8 doesn't use up your call or cost you a card.
-* If you draw instead of playing, you take 1 card and your turn ends. With *Must play if you can* switched on, you can only draw when nothing in your hand can be played.
-* When the pile runs out, the discards are shuffled back in. If there are none, a new deck is added, up to 3. The first time a deck is added, *Must play if you can* switches on for the rest of the round, since it means everyone has been drawing instead of playing.
+* If you pick up instead of playing, you take 1 card and your turn ends. With *Must play if you can* switched on, you can only pick up when nothing in your hand can be played.
+* When the pile runs out, the discards are shuffled back in. If there are none, a new deck is added, up to 3. The first time a deck is added, *Must play if you can* switches on for the rest of the round, since it means everyone has been picking up instead of playing.
 
 ---
 

@@ -460,7 +460,82 @@ input[type="range"] {
   accent-color: var(--pink);
 }
 
+/* one of a few, each with a line saying what it does */
+.setting-choice {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.setting-choice legend {
+  padding: 0;
+  margin-bottom: 6px;
+}
+
+.setting .setting-choice label {
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.setting-choice label:has(input:checked) {
+  border-color: var(--pink);
+  background: var(--surface-2);
+}
+
+.setting-choice input {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  flex: none;
+  accent-color: var(--pink);
+}
+
+.setting-choice span {
+  display: grid;
+  gap: 2px;
+}
+
+.setting-choice small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
 /* lobby */
+
+.lobby-settings {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  text-align: left;
+}
+
+.lobby-settings li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.lobby-settings li:last-child {
+  border-bottom: 0;
+}
+
+.lobby-settings span {
+  color: var(--muted);
+}
+
+.lobby-settings strong {
+  text-align: right;
+}
 
 .big-code {
   font-size: clamp(2.2rem, 11vw, 3.6rem);

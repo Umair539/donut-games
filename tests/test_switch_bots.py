@@ -7,20 +7,22 @@ import pytest
 
 from Server.core.base import GameError
 from Server.bots.switch import (
-    HeuristicBot, RandomBot, SearchBot, after_card, beliefs, breaks, can_draw, guess, moves,
-    plays, should_call, unseen, way_out,
+    HeuristicBot, RandomBot, SearchBot, beliefs, breaks, can_draw, guess, moves, plays,
+    should_call, unseen, way_out,
 )
-from Server.games.switch import Switch, connects, new_deck, rank
+from Server.games.switch import EIGHTS, Switch, connects, new_deck, rank
 
 MAX_ACTIONS = 3000
 
 
 def outcome(game, cards):
     """What a play leaves behind, which is how plays() tells them apart."""
-    pending = game.pending
+    pending = game._incoming()
+    kings = 0  # at the end
     for card in cards:
-        pending = after_card(game, pending, card)
-    flipped = sum(rank(c) == "K" for c in cards) % 2 == 1
+        pending = game._after(pending, card)
+        kings = kings + 1 if rank(card) == "K" else 0
+    flipped = kings % 2 == 1
     return tuple(sorted(cards)), cards[-1], tuple(sorted((pending or {}).items())), flipped
 
 
@@ -41,7 +43,7 @@ def random_games(count, seed=0):
         rng = random.Random(seed + n)
         game = Switch(rng.randint(2, 6), hand_size=rng.randint(1, 7), decks=rng.randint(1, 2),
                       force_play=rng.random() < 0.3, play_on=rng.random() < 0.5,
-                      rng=random.Random(rng.random()))
+                      eights=EIGHTS[n % len(EIGHTS)], rng=random.Random(rng.random()))
         bot = RandomBot(random.Random(seed + n))
         for _ in range(MAX_ACTIONS):
             if game.over:

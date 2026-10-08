@@ -10,7 +10,7 @@ MAX_TURN_SECONDS = 30
 TIMER_SETTINGS = [
     {"key": "timer", "label": "Turn timer", "type": "bool", "default": False},
     {"key": "turn_seconds", "label": "Seconds per turn", "type": "int",
-     "min": MIN_TURN_SECONDS, "max": MAX_TURN_SECONDS, "default": 20},
+     "min": MIN_TURN_SECONDS, "max": MAX_TURN_SECONDS, "default": 20, "only_if": "timer"},
 ]
 
 
@@ -40,7 +40,9 @@ class BaseGame:
     # What the host can choose. Each entry is
     # {"key", "label", "type": "int", "min", "max", "default"}, and "max_of": [keys] makes
     # the maximum follow the largest of those other settings. {"key", "label", "type": "bool",
-    # "default"} is an on/off switch.
+    # "default"} is an on/off switch. {"key", "label", "type": "choice", "default", "options":
+    # [{"value", "label", "help"}]} picks one of a few, each explained by its help. Any of
+    # them can have "only_if": key, to only be shown while that other setting is on.
     settings_schema = []
 
     @classmethod

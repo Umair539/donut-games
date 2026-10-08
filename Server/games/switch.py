@@ -19,6 +19,13 @@ JACK = "jack"
 SKIP = "skip"
 COUNTERS = {TWO: "2", JACK: "J", SKIP: "8"}
 
+# what answering an 8 with an 8 does: adds to the skips, starts them again, or can't be done
+# because an 8 skips straight away
+STACK = "stack"
+REPLACE = "replace"
+IMMEDIATE = "immediate"
+EIGHTS = (STACK, REPLACE, IMMEDIATE)
+
 PLAYING = "playing"
 WIN = "win"
 
@@ -76,6 +83,17 @@ class Switch(BaseGame):
          "max": 7, "default": 5},
         {"key": "decks", "label": "Decks (6+ players always get 2)", "type": "int", "min": 1,
          "max": 2, "default": 1},
+        {"key": "eights", "label": "Answering an 8 with an 8", "type": "choice",
+         "default": STACK, "options": [
+             {"value": STACK, "label": "Stack",
+              "help": "The skips add up. Two 8s answered with one skip the next 3 players."},
+             {"value": REPLACE, "label": "Replace",
+              "help": "Your 8s start the skips again. Two 8s answered with one skip only the "
+                      "player after you."},
+             {"value": IMMEDIATE, "label": "Skip straight away",
+              "help": "An 8 can't be answered: the next player is skipped at once. Two 8s skip "
+                      "the next 2 players."},
+         ]},
         {"key": "force_play", "label": "Must play if you can", "type": "bool",
          "default": False},
         {"key": "play_on", "label": "Keep playing for 2nd, 3rd...", "type": "bool",
@@ -89,8 +107,9 @@ class Switch(BaseGame):
     def create(cls, settings, num_players):
         return cls(num_players, **settings)
 
-    def __init__(self, players, hand_size=7, jack_penalty=5, decks=1, force_play=False,
-                 play_on=False, call_penalty=False, timer=False, turn_seconds=20, rng=None):
+    def __init__(self, players, hand_size=7, jack_penalty=5, decks=1, eights=STACK,
+                 force_play=False, play_on=False, call_penalty=False, timer=False,
+                 turn_seconds=20, rng=None):
         if not _is_int(players) or not self.min_players <= players <= self.max_players:
             raise GameError(f"Need {self.min_players} to {self.max_players} players")
         if not _is_int(hand_size) or not 1 <= hand_size <= 7:
@@ -99,6 +118,8 @@ class Switch(BaseGame):
             raise GameError("Chocolate/blue jack pick-up must be between 5 and 7")
         if not _is_int(decks) or not 1 <= decks <= 2:
             raise GameError("Decks must be 1 or 2")
+        if eights not in EIGHTS:
+            raise GameError("Invalid value for answering an 8")
         if not isinstance(force_play, bool):
             raise GameError("Invalid value for must play if you can")
         if not isinstance(play_on, bool):
@@ -111,6 +132,7 @@ class Switch(BaseGame):
         self.hand_size = hand_size
         self.jack_penalty = jack_penalty
         self.start_decks = max(decks, 2 if players >= BIG_GAME else 1)
+        self.eights = eights
         self.force_play = force_play
         self.play_on = play_on  # after someone goes out, the rest play on for places
         self.call_penalty = call_penalty  # calling cards and not going out costs a card
@@ -194,6 +216,7 @@ class Switch(BaseGame):
             "calling": self.calling,
             "called": sorted(self._called_now()),
             "turn": self.turn,
+            "next": None if self.over else self._next(self.turn),
             "direction": self.direction,
             "pile": len(self.pile),
             "decks": self.decks,
@@ -230,6 +253,7 @@ class Switch(BaseGame):
             "hand_size": self.hand_size,
             "jack_penalty": self.jack_penalty,
             "start_decks": self.start_decks,
+            "eights": self.eights,
             "force_play": self.force_play,
             "play_on": self.play_on,
             "call_penalty": self.call_penalty,
@@ -274,6 +298,7 @@ class Switch(BaseGame):
         """The shuffle order isn't kept: a fresh random generator is as good as the old one."""
         game = cls(data["num_players"], hand_size=data["hand_size"],
                    jack_penalty=data["jack_penalty"], decks=data["start_decks"],
+                   eights=data.get("eights", STACK),  # games saved before it was a setting
                    force_play=data["force_play"], play_on=data["play_on"],
                    # games saved before this was a setting always had the penalty
                    call_penalty=data.get("call_penalty", True))
@@ -325,19 +350,14 @@ class Switch(BaseGame):
             raise GameError("Choose a suit for your ace")
 
         # played in order: attacks build up, and any other card ends them
-        pending = self.pending
-        kings = 0
+        pending = self._incoming()
+        kings = 0  # kings at the end of the turn so far: an odd number reverses play
         for card in cards:
-            if rank(card) == "K":
-                kings += 1
-            if rank(card) == "2":
-                pending = self._stack(pending, TWO, 2)
-            elif is_black_jack(card):
-                pending = self._stack(pending, JACK, self.jack_penalty)
-            elif rank(card) == "8":
-                pending = self._stack(pending, SKIP, 1)
-            else:
-                pending = None  # includes a pink or orange jack cancelling a chocolate or blue one
+            kings = kings + 1 if rank(card) == "K" else 0
+            pending = self._after(pending, card)
+        skips = 0
+        if self.eights == IMMEDIATE and pending and pending["kind"] == SKIP:
+            skips, pending = pending["count"], None  # nobody gets the chance to answer
 
         self.hands[player] = remaining
         self.discard.extend(cards)
@@ -367,7 +387,7 @@ class Switch(BaseGame):
         if not self.hands[player]:
             self._went_out(player)
         else:
-            self._advance(tried=tried)
+            self._advance(tried=tried, skips=skips)
 
     def timeout(self, player):
         self._draw_instead(player, timed_out=True)
@@ -395,9 +415,26 @@ class Switch(BaseGame):
             without = None if timed_out else \
                 ((self.suit,), (rank(self.discard[-1]), "A"), self.force)
             got = self._draw(player, 1, without)
-            text = "drew a card" if got else "couldn't draw, no cards left"
+            text = "picked up a card" if got else "couldn't pick up, no cards left"
             self._log(player, "ran out of time and " + text if timed_out else text)
         self._advance()
+
+    def _incoming(self):
+        """The attack the first card of a turn builds on. When 8s replace, answering one
+        starts the skips again from your own 8s."""
+        if self.eights == REPLACE and self.pending and self.pending["kind"] == SKIP:
+            return None
+        return self.pending
+
+    def _after(self, pending, card):
+        """The attack waiting for the next player once card is played on top of pending."""
+        if rank(card) == "2":
+            return self._stack(pending, TWO, 2)
+        if is_black_jack(card):
+            return self._stack(pending, JACK, self.jack_penalty)
+        if rank(card) == "8":
+            return self._stack(pending, SKIP, 1)
+        return None  # any other card ends it, a pink or orange jack cancelling a dark one too
 
     @staticmethod
     def _stack(pending, kind, amount):
@@ -457,11 +494,19 @@ class Switch(BaseGame):
             called.add(self.turn)
         return called
 
-    def _advance(self, missed=False, tried=False):
-        """Pass the turn on. A missed turn (from an 8) isn't a go, so a call made on the
-        turn before it still counts for the player's next real go. Not going out on that go
-        costs a card if the host chose that, unless the player already picked one up for
-        trying (tried)."""
+    def _next(self, player):
+        """Who plays after player, going the way play is going and passing over anyone out."""
+        for _ in range(self.num_players):
+            player = (player - 1 + self.direction) % self.num_players + 1
+            if player in self._active():
+                break
+        return player
+
+    def _advance(self, missed=False, tried=False, skips=0):
+        """Pass the turn on, past skips players when 8s skip straight away. A missed turn
+        (from an 8) isn't a go, so a call made on the turn before it still counts for the
+        player's next real go. Not going out on that go costs a card if the host chose that,
+        unless the player already picked one up for trying (tried)."""
         player = self.turn
         if (self.call_penalty and player in self.called and not missed and not tried
                 and self.hands[player]):
@@ -472,10 +517,10 @@ class Switch(BaseGame):
         elif not missed:
             self.called.discard(player)
         self.calling = False
-        for _ in range(self.num_players):
-            player = (player - 1 + self.direction) % self.num_players + 1
-            if player in self._active():
-                break
+        player = self._next(player)
+        for _ in range(skips):
+            self._log(player, "missed a turn")
+            player = self._next(player)
         self.turn = player
 
     def _went_out(self, player):

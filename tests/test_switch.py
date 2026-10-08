@@ -60,7 +60,7 @@ def test_big_games_use_two_decks():
 
 @pytest.mark.parametrize("settings", [
     {"hand_size": 0}, {"hand_size": 8}, {"jack_penalty": 4}, {"jack_penalty": 8},
-    {"decks": 3}, {"force_play": 1}, {"hand_size": True},
+    {"decks": 3}, {"force_play": 1}, {"hand_size": True}, {"eights": "double"},
 ])
 def test_bad_settings(settings):
     with pytest.raises(GameError):
@@ -198,6 +198,57 @@ def test_eights_skip_and_pass_on():
     assert len(game.hands[3]) == 2  # missing a turn doesn't pick up
 
 
+def eights_game(eights):
+    return setup(players=4, eights=eights, called=False, hands={
+        1: ["8H", "8C", "4C"], 2: ["8S", "9C"], 3: ["3D", "4D"], 4: ["3H", "4H"]})
+
+
+def test_eights_stack_by_default():
+    assert Switch.validate_settings({})["eights"] == "stack"
+    game = eights_game("stack")
+    play(game, "8H", "8C")
+    play(game, "8S")
+    assert game.turn == 3 and game.pending == {"kind": "skip", "count": 3}
+
+
+def test_eights_replace():
+    game = eights_game("replace")
+    play(game, "8H", "8C")
+    assert game.turn == 2 and game.pending == {"kind": "skip", "count": 2}
+    play(game, "8S")  # starts the skips again: only the player after
+    assert game.turn == 3 and game.pending == {"kind": "skip", "count": 1}
+    draw(game)
+    assert game.turn == 4 and game.pending is None
+
+
+def test_eights_unanswered_carry_on_when_they_replace():
+    game = eights_game("replace")
+    play(game, "8H", "8C")
+    draw(game)  # player 2 misses a turn, and so does player 3
+    assert game.turn == 3 and game.pending == {"kind": "skip", "count": 1}
+
+
+def test_eights_skip_straight_away():
+    game = eights_game("immediate")
+    play(game, "8H", "8C")
+    assert game.turn == 4 and game.pending is None
+    assert [e["player"] for e in game.log if e["text"] == "missed a turn"] == [2, 3]
+    assert len(game.hands[2]) == 2 and len(game.hands[3]) == 2
+
+
+def test_an_eight_straight_away_with_two_players_comes_back_round():
+    game = setup(eights="immediate", called=False, hands={1: ["8H", "4C"], 2: ["8S", "9C"]})
+    play(game, "8H")
+    assert game.turn == 1 and game.pending is None
+
+
+def test_an_eight_straight_away_followed_by_another_card_does_nothing():
+    game = setup(players=3, eights="immediate", called=False,
+                 hands={1: ["8H", "9H", "4C"], 2: ["9C"], 3: ["9D"]})
+    play(game, "8H", "9H")
+    assert game.turn == 2
+
+
 # ---- kings and queens
 
 def test_kings_reverse():
@@ -206,12 +257,27 @@ def test_kings_reverse():
     assert game.direction == -1 and game.turn == 3
 
 
-@pytest.mark.parametrize("kings, direction", [(2, 1), (3, -1), (4, 1)])
-def test_several_kings(kings, direction):
-    hand = ["KS", "KH", "KD", "KC"][:kings] + ["4C"]
-    game = setup(players=3, top="5S", hands={1: hand})
-    play(game, *hand[:kings])
+@pytest.mark.parametrize("cards, direction", [
+    (["KS", "KH"], 1),
+    (["KS", "KH", "KD"], -1),
+    (["KS", "KH", "KD", "KC"], 1),
+    (["KS", "QS", "QH", "KH"], -1),  # only the kings at the end count
+    (["KS", "QS", "QH", "KH", "KC"], 1),
+    (["KS", "QS", "3S"], 1),  # a king that isn't last doesn't reverse
+])
+def test_kings_at_the_end_of_the_turn(cards, direction):
+    game = setup(players=3, top="5S", hands={1: cards + ["4C"]}, called=False)
+    play(game, *cards)
     assert game.direction == direction
+
+
+def test_everyone_sees_who_is_next():
+    game = setup(players=3, top="5S", hands={1: ["KS", "4C"], 2: ["9C"], 3: ["9D"]})
+    assert game.view(2)["next"] == 2
+    play(game, "KS")
+    assert game.turn == 3 and game.view(2)["next"] == 2  # going the other way now
+    game.player_left(2)
+    assert game.view(1)["next"] == 1
 
 
 def test_queen_must_be_covered():

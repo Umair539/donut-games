@@ -11,7 +11,7 @@ from collections import Counter
 import pytest
 
 from Server.core.base import GameError
-from Server.games.switch import POWER, SKIP, SUITS, Switch, connects, new_deck, rank
+from Server.games.switch import EIGHTS, POWER, SKIP, SUITS, Switch, connects, new_deck, rank
 
 GAMES = int(os.environ.get("SWITCH_GAMES", 50))
 FIRST_SEED = int(os.environ.get("SWITCH_FIRST_SEED", 0))
@@ -68,7 +68,7 @@ def picked_up(entries, player):
     for who, text in entries:
         if who == player:
             total += sum(int(n) for n in re.findall(r"picked up (\d+)", text))
-            total += text.count("drew a card")
+            total += text.count("picked up a card")
     return total
 
 
@@ -106,7 +106,7 @@ def play_game(seed, stats):
     game = Switch(players, hand_size=rng.randint(1, 7), jack_penalty=rng.randint(5, 7),
                   decks=rng.randint(1, 2), force_play=rng.random() < 0.3,
                   play_on=rng.random() < 0.5, call_penalty=rng.random() < 0.7,
-                  rng=random.Random(seed + 1))
+                  eights=EIGHTS[seed % len(EIGHTS)], rng=random.Random(seed + 1))
     entries = watch(game)
     caller = rng.choice([0.05, 0.3, 0.7])  # how keen these players are to call
 

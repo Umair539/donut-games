@@ -11,7 +11,8 @@ import time
 from collections import Counter
 
 from Server.games.switch import (
-    JACK, POWER, SKIP, SUITS, TWO, Switch, connects, is_black_jack, new_deck, rank, suit,
+    IMMEDIATE, JACK, POWER, SKIP, SUITS, TWO, Switch, connects, is_black_jack, new_deck, rank,
+    suit,
 )
 
 PLAY_LIMIT = 400  # different plays listed at most, for a hand so big that listing all is slow
@@ -130,17 +131,6 @@ def guess(game, player, rng, slots=None):
 
 # ---- legal moves
 
-def after_card(game, pending, card):
-    """The attack waiting for the next player once card is played on top of pending."""
-    if rank(card) == "2":
-        return Switch._stack(pending, TWO, 2)
-    if is_black_jack(card):
-        return Switch._stack(pending, JACK, game.jack_penalty)
-    if rank(card) == "8":
-        return Switch._stack(pending, SKIP, 1)
-    return None
-
-
 def plays(game, limit=PLAY_LIMIT):
     """Every different play the player whose turn it is could make, as lists of cards. Two
     orders that leave the game the same way (same cards played, same last card, same attack,
@@ -148,7 +138,8 @@ def plays(game, limit=PLAY_LIMIT):
     hand = game.hands[game.turn]
     found = []
     seen = set()
-    stack = [((card,), after_card(game, game.pending, card), rank(card) == "K")
+    # flipped: an odd number of kings at the end so far, which reverses play
+    stack = [((card,), game._after(game._incoming(), card), rank(card) == "K")
              for card in sorted(set(hand)) if game.can_start(card)]
     while stack and len(found) < limit:
         cards, pending, flipped = stack.pop()
@@ -161,8 +152,8 @@ def plays(game, limit=PLAY_LIMIT):
         found.append(list(cards))
         for card in sorted(c for c, n in left.items() if n > 0):
             if LINKS[cards[-1], card]:
-                stack.append((cards + (card,), after_card(game, pending, card),
-                              flipped != (rank(card) == "K")))
+                stack.append((cards + (card,), game._after(pending, card),
+                              rank(card) == "K" and not flipped))
     return found
 
 
@@ -344,8 +335,15 @@ def score(before, player, action, calls, w=DEFAULT_WEIGHTS):
 
     # an attack on the next player, worth more when they are close to going out
     victim = game.turn
-    if game.pending and victim != player:
-        hurt = w.hurt[game.pending["kind"]] * game.pending["count"]
+    attack = game.pending if victim != player else None
+    if game.eights == IMMEDIATE and action["type"] == "play":
+        skips = 0  # 8s at the end, which have already skipped players rather than waiting
+        for card in action["cards"]:
+            skips = skips + 1 if rank(card) == "8" else 0
+        if skips:
+            victim, attack = game._next(player), {"kind": SKIP, "count": skips}
+    if attack:
+        hurt = w.hurt[attack["kind"]] * attack["count"]
         threat = w.threat if len(game.hands[victim]) <= 2 or victim in game.called else 1
         value += min(hurt, w.hurt_cap) * threat
     if calls and sure_out(before, player, action):

@@ -103,7 +103,7 @@ def try_invalid(game, rng):
 def play_game(seed, stats):
     rng = random.Random(seed)
     players = rng.randint(2, 10)
-    game = Switch(players, hand_size=rng.randint(1, 7), jack_penalty=rng.randint(5, 7),
+    game = Switch(players, hand_size=rng.randint(1, 7), jack_penalty=rng.randint(1, 7),
                   decks=rng.randint(1, 2), force_play=rng.random() < 0.3,
                   play_on=rng.random() < 0.5, call_penalty=rng.random() < 0.7,
                   eights=EIGHTS[seed % len(EIGHTS)], rng=random.Random(seed + 1))

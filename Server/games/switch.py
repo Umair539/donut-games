@@ -79,7 +79,7 @@ class Switch(BaseGame):
     settings_schema = [
         {"key": "hand_size", "label": "Starting cards", "type": "int", "min": 1, "max": 7,
          "default": 7},
-        {"key": "jack_penalty", "label": "Chocolate/blue jack pick-up", "type": "int", "min": 5,
+        {"key": "jack_penalty", "label": "Chocolate/blue jack pick-up", "type": "int", "min": 1,
          "max": 7, "default": 5},
         {"key": "decks", "label": "Decks (6+ players always get 2)", "type": "int", "min": 1,
          "max": 2, "default": 1},
@@ -114,8 +114,8 @@ class Switch(BaseGame):
             raise GameError(f"Need {self.min_players} to {self.max_players} players")
         if not _is_int(hand_size) or not 1 <= hand_size <= 7:
             raise GameError("Starting cards must be between 1 and 7")
-        if not _is_int(jack_penalty) or not 5 <= jack_penalty <= 7:
-            raise GameError("Chocolate/blue jack pick-up must be between 5 and 7")
+        if not _is_int(jack_penalty) or not 1 <= jack_penalty <= 7:
+            raise GameError("Chocolate/blue jack pick-up must be between 1 and 7")
         if not _is_int(decks) or not 1 <= decks <= 2:
             raise GameError("Decks must be 1 or 2")
         if eights not in EIGHTS:
@@ -150,11 +150,10 @@ class Switch(BaseGame):
             p: [self.pile.pop() for _ in range(self.hand_size)]
             for p in range(1, self.num_players + 1)
         }
-        for _ in range(len(self.pile)):  # start on a plain card if there is one
-            if rank(self.pile[-1]) not in POWER:
-                break
-            self.pile.insert(0, self.pile.pop())
+        # turn cards over until a plain one is on top: the power cards under it do nothing
         self.discard = [self.pile.pop()]
+        while rank(self.discard[-1]) in POWER and self.pile:
+            self.discard.append(self.pile.pop())
         self.suit = suit(self.discard[-1])  # the suit to follow, set by an ace
         self.pending = None  # an attack waiting for the player whose turn it is
         self.direction = 1

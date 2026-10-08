@@ -47,6 +47,18 @@ def test_deal():
     assert game.discard[-1][:-1] not in {"A", "2", "8", "J", "Q", "K"}
 
 
+class NoShuffle(random.Random):
+    def shuffle(self, x):
+        pass
+
+
+def test_power_cards_turned_over_first_stay_under_a_plain_one():
+    # unshuffled, the deck ends ... 10♣ J♣ Q♣ K♣: K♣ and Q♣ are dealt, then J♣ is turned over
+    game = Switch(2, hand_size=1, rng=NoShuffle(0))
+    assert game.discard == ["JC", "10C"]
+    assert game.pending is None and game.suit == "C"
+
+
 def test_random_first_player():
     starters = {Switch(4, rng=random.Random(seed)).turn for seed in range(40)}
     assert starters == {1, 2, 3, 4}
@@ -59,7 +71,7 @@ def test_big_games_use_two_decks():
 
 
 @pytest.mark.parametrize("settings", [
-    {"hand_size": 0}, {"hand_size": 8}, {"jack_penalty": 4}, {"jack_penalty": 8},
+    {"hand_size": 0}, {"hand_size": 8}, {"jack_penalty": 0}, {"jack_penalty": 8},
     {"decks": 3}, {"force_play": 1}, {"hand_size": True}, {"eights": "double"},
 ])
 def test_bad_settings(settings):

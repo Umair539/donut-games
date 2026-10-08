@@ -131,7 +131,9 @@ def test_lobby_shows_who_is_here_and_only_the_host_can_start(player):
     code = host(ann, "Connect Donut", rows=5)
     expect(ann.locator("#start")).to_be_disabled()
     expect(ann.locator("#lobby-wait")).to_have_text("Waiting for players to join…")
-    expect(ann.locator("#lobby-settings")).to_contain_text("Rows: 5")
+    expect(ann.locator("#lobby-settings li", has_text="Rows")).to_contain_text("5")
+    expect(ann.locator("#lobby-settings li", has_text="Turn timer")).to_contain_text("No")
+    expect(ann.locator("#lobby-settings")).not_to_contain_text("Seconds per turn")
 
     join(bob, code)
     expect(ann.locator("#lobby-heading")).to_have_text("Players (2/2)")
@@ -141,6 +143,21 @@ def test_lobby_shows_who_is_here_and_only_the_host_can_start(player):
     expect(bob.locator("#lobby-wait")).to_have_text("Waiting for the host to start…")
     expect(bob.locator("#lobby-players li", has_text="Ann")).to_contain_text("Host")
     expect(bob.locator("#lobby-players li", has_text="Bob")).to_contain_text("(you)")
+
+
+def test_choices_are_explained_and_the_lobby_lists_them(player):
+    ann = player("Ann")
+    ann.locator(".game-option", has_text="Donut Cards").click()
+    expect(ann.locator(".setting-choice")).to_contain_text("The skips add up")
+    expect(ann.get_by_label("Stack")).to_be_checked()
+    expect(ann.get_by_label("Seconds per turn")).to_be_hidden()  # only with the timer on
+    ann.get_by_label("Turn timer").check()
+    expect(ann.get_by_label("Seconds per turn")).to_be_visible()
+    ann.get_by_label("Replace").check()
+    ann.get_by_role("button", name="Create").click()
+    expect(ann.locator("#lobby-settings li", has_text="Answering an 8")).to_contain_text(
+        "Replace")
+    expect(ann.locator("#lobby-settings li", has_text="Seconds per turn")).to_contain_text("20")
 
 
 def test_invite_link(player, live_server):
@@ -340,8 +357,22 @@ def test_cards_ace_asks_for_a_suit(player, live_server):
     expect(ann.locator("[data-suits] img")).to_have_count(4)  # the donuts, not ♠♥♦♣
     ann.get_by_role("button", name="blue").click()
     ann.locator("[data-play]").click()
-    expect(bob.locator("[data-suit]")).to_have_text("asked")
-    expect(bob.locator("[data-suit] img")).to_have_attribute("src", "sprites/blue.png")
+    expect(status(bob)).to_contain_text("Your turn · suit changed to blue")
+    expect(status(bob).locator("img")).to_have_attribute("src", "sprites/blue.png")
+    expect(status(ann)).to_contain_text("Bob's turn · suit changed to blue")
+
+
+def test_cards_next_player_and_attacks_on_others(player, live_server):
+    (ann, bob, cat), _ = cards_game(player, live_server, ["Ann", "Bob", "Cat"],
+                                    {1: ["2S", "KS", "9C"], 2: ["9D", "4H"], 3: ["9H", "4D"]},
+                                    top="4S")
+    expect(ann.locator(".sw-player.next")).to_contain_text("Bob")
+    card(ann, "2♠").click()
+    ann.locator("[data-play]").click()
+    expect(cat.locator(".sw-player.active")).to_contain_text("Bob")
+    expect(cat.locator(".sw-player.next")).to_contain_text("Cat")
+    expect(status(cat)).to_have_text("Bob's turn · facing pick up 2")
+    expect(bob.locator("[data-draw]")).to_have_text("Pick up 2")
 
 
 def test_cards_calling_shows_everyone(player, live_server):

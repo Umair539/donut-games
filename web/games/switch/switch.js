@@ -93,16 +93,10 @@
       <div class="sw">
         <ul class="sw-players" data-players></ul>
         <div class="sw-table">
-          <button class="sw-pile" type="button" data-pile aria-label="Draw pile">
+          <button class="sw-pile" type="button" data-pile aria-label="Pick-up pile">
             <img src="${BACK}" alt=""><span data-pile-count></span>
           </button>
           <div class="sw-discard" data-discard></div>
-          <div class="sw-info">
-            <span class="sw-suit" data-suit></span>
-            <span data-direction></span>
-            <span class="sw-pending" data-pending></span>
-            <span class="sw-force muted small" data-force>Must play if you can</span>
-          </div>
         </div>
         <p class="sw-status" data-status aria-live="polite"></p>
         <ol class="sw-log muted small" data-log></ol>
@@ -115,7 +109,7 @@
         <div class="sw-controls">
           <button class="btn btn-ghost" type="button" data-clear>Clear</button>
           <button class="btn sw-call" type="button" data-call>Cards!</button>
-          <button class="btn" type="button" data-draw>Draw</button>
+          <button class="btn" type="button" data-draw>Pick up</button>
           <button class="btn btn-primary" type="button" data-play>Play</button>
         </div>
         <div class="sw-hand" data-hand role="group" aria-label="Your cards"></div>
@@ -128,7 +122,7 @@
       paint(root);
     });
     const draw = () => {
-      if (!myTurn() || root.classList.contains("busy")) return;
+      if (!myTurn() || mustPlay(ctx.data) || root.classList.contains("busy")) return;
       root.classList.add("busy"); // cleared by the next render, a state or an error
       send({ type: "draw" });
     };
@@ -160,6 +154,11 @@
     return ctx && ctx.data.status === "playing" && ctx.data.turn === ctx.you;
   }
 
+  // with "must play if you can" on, you can only pick up when nothing in your hand goes
+  function mustPlay(g) {
+    return g.force && !g.pending && g.hand.some((card) => canStart(card, g));
+  }
+
   function nameOf(id) {
     if (ctx && id === ctx.you) return "You";
     const player = ctx && ctx.players.find((p) => p.id === id);
@@ -187,7 +186,10 @@
     q("[data-players]").replaceChildren(
       ...rotated.map((p) => {
         const item = el("li", "sw-player");
-        item.classList.toggle("active", g.status === "playing" && g.turn === p.id);
+        const playing = g.status === "playing";
+        item.classList.toggle("active", playing && g.turn === p.id);
+        // who goes after, which shows the way play is going
+        item.classList.toggle("next", playing && g.next === p.id && g.next !== g.turn);
         item.classList.toggle("gone", p.status === "left");
         const dot = el("i", `dot ${p.status}`);
         dot.title = p.status;
@@ -212,7 +214,6 @@
 
     // table
     q("[data-pile-count]").textContent = g.pile;
-    q("[data-pile]").disabled = !myTurn();
     q("[data-discard]").replaceChildren(
       ...g.discard.map((card, i) => {
         const img = cardImg(image(card), label(card));
@@ -220,31 +221,25 @@
         return img;
       }),
     );
-    const top = g.discard[g.discard.length - 1];
-    const suitNode = q("[data-suit]");
-    const donut = cardImg(DONUTS[g.suit].src, `${DONUTS[g.suit].name} ${SYMBOLS[g.suit]}`);
-    suitNode.replaceChildren(donut, ...(rank(top) === "A" ? [" asked"] : []));
-    suitNode.title = `${DONUTS[g.suit].name} to follow`;
-    suitNode.className = `sw-suit suit-${g.suit}`;
-    q("[data-direction]").textContent = g.direction === 1 ? "↻" : "↺";
-    q("[data-direction]").title = g.direction === 1 ? "Clockwise" : "Anticlockwise";
-    q("[data-pending]").textContent = pendingText(g.pending);
-    q("[data-force]").hidden = !g.force;
 
+    // the status line says what the table needs to: whose turn, a suit an ace asked for,
+    // and an attack waiting for someone else
     const myPlace = g.places.indexOf(ctx.you) + 1;
-    let status;
+    const parts = [];
     if (g.status === "win") {
-      if (g.winner === ctx.you) status = "You win! 🎉";
-      else if (myPlace) status = `${nameOf(g.winner)} wins · you came ${placeText(myPlace)}`;
-      else status = `${nameOf(g.winner)} wins`;
-    } else if (myTurn()) {
-      status = `Your turn · ${hint(g)}`;
-    } else if (myPlace) {
-      status = `You came ${placeText(myPlace)}, watching · ${nameOf(g.turn)}'s turn`;
+      if (g.winner === ctx.you) parts.push("You win! 🎉");
+      else if (myPlace) parts.push(`${nameOf(g.winner)} wins`, `you came ${placeText(myPlace)}`);
+      else parts.push(`${nameOf(g.winner)} wins`);
     } else {
-      status = `${nameOf(g.turn)}'s turn`;
+      if (myPlace) parts.push(`You came ${placeText(myPlace)}, watching`);
+      parts.push(myTurn() ? "Your turn" : `${nameOf(g.turn)}'s turn`);
+      if (rank(g.discard[g.discard.length - 1]) === "A") {
+        parts.push(`suit changed to ${DONUTS[g.suit].name} ${SYMBOLS[g.suit]}`);
+      }
+      if (myTurn()) parts.push(hint(g));
+      else if (g.pending) parts.push(facing(g.pending));
     }
-    q("[data-status]").textContent = status;
+    q("[data-status]").replaceChildren(...withDonuts(parts.join(" · ")));
 
     q("[data-log]").replaceChildren(
       ...g.log.slice().reverse().map((entry) => {
@@ -262,14 +257,15 @@
     return medals[n] || `${n}th`;
   }
 
-  function pendingText(pending) {
-    if (!pending) return "";
-    if (pending.kind === "skip") return `Skip ×${pending.count}`;
-    return `Pick up ${pending.count}`;
+  // an attack waiting for someone else
+  function facing(pending) {
+    if (pending.kind !== "skip") return `facing pick up ${pending.count}`;
+    return pending.count === 1 ? "facing an 8" : `facing ${pending.count} skips`;
   }
 
   function hint(g) {
-    if (!g.pending) return "pick cards to play, or draw";
+    if (mustPlay(g)) return "pick cards to play (you must play if you can)";
+    if (!g.pending) return "pick cards to play, or pick up";
     if (g.pending.kind === "skip") return "play an 8 or miss your turn";
     const card = g.pending.kind === "two" ? "a 2" : "a jack";
     return `play ${card} or pick up ${g.pending.count}`;
@@ -325,10 +321,11 @@
     call.textContent = turn && g.calling ? "Called!" : "Cards!";
 
     const draw = q("[data-draw]");
-    draw.disabled = !turn;
+    draw.disabled = !turn || mustPlay(g);
+    q("[data-pile]").disabled = draw.disabled;
     if (g.pending && g.pending.kind === "skip") draw.textContent = "Miss turn";
     else if (g.pending) draw.textContent = `Pick up ${g.pending.count}`;
-    else draw.textContent = "Draw";
+    else draw.textContent = "Pick up";
   }
 
   window.Games = window.Games || {};
@@ -336,10 +333,10 @@
     icon: `${CARDS}ace_of_spades.png`,
     instructions: [
       "Each donut is a suit: chocolate ♠ and blue ♣ are the dark suits, pink ♥ and orange ♦ the bright ones.",
-      "Be the first to empty your hand. On your turn play a card matching the suit or rank of the top card, or an ace (wild, you pick the suit). Can't or won't? Draw a card.",
+      "Be the first to empty your hand. On your turn play a card matching the suit or rank of the top card, or an ace (wild, you pick the suit). Can't or won't? Pick up a card.",
       "You can play several cards in one turn: same rank, or the same suit one step up or down (A sits next to 2 and K).",
-      "2: next player picks up 2 (stacks). Chocolate or blue jack: next player picks up 5–7 (a pink or orange jack cancels it). 8: next player misses a turn (stacks). Counter an attack with the same kind of card, or take it.",
-      "King: reverses direction (an odd number of kings in one turn). Queen: cover it with the same suit or another queen, or pick up 1.",
+      "2: next player picks up 2 (stacks). Chocolate or blue jack: next player picks up 5–7 (a pink or orange jack cancels it). 8: next player misses a turn. Counter an attack with the same kind of card, or take it. Whether 8s answered with 8s add up, start again or can't be answered at all is the host's choice, shown in the lobby.",
+      "King: reverses direction when your turn ends on it (an odd number of kings at the end: K or K K K, not K K). The player whose name is outlined in orange goes next. Queen: cover it with the same suit or another queen, or pick up 1.",
       "You can't go out on a 2, 8, J, Q, K or ace: you pick up 1 instead.",
       "Cards! Press the red Cards button during the turn before the one you plan to go out on, then play your last cards on your next go. Everyone sees who has called. Go out without calling on your previous turn and you pick up 1 instead. If the host switched it on, calling and then not going out on your next go costs you 1 too. Being skipped by an 8 doesn't use up your call.",
     ],

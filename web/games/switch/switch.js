@@ -377,8 +377,8 @@
       { heading: "Reading the table" },
       {
         list: [
-          ["Pink outline:", "whose turn it is."],
-          ["Orange outline:", "who goes next."],
+          ["Orange outline:", "whose turn it is."],
+          ["Faded orange outline:", "who goes next."],
         ],
       },
     ],

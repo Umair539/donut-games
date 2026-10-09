@@ -18,7 +18,7 @@ main:has(.sw) .game-actions {
   --table-card: min(calc(var(--card-w) * 1.6), 24vw); /* the pile and the discards */
   --felt: #2a1a3d;
   --red-suit: #ff6b81;
-  --next: #ff9a3c; /* outlines whoever plays after the current player */
+  --turn: #ff9a3c; /* outlines whoever's turn it is, and faded, whoever goes after them */
   display: flex;
   flex-direction: column;
   gap: 0.7em;
@@ -61,11 +61,12 @@ main:has(.sw) .game-actions {
 }
 
 .sw-player.active {
-  border-color: var(--pink);
+  border-color: var(--turn);
+  box-shadow: 0 0 0 1px var(--turn);
 }
 
 .sw-player.next {
-  border-color: var(--next);
+  border-color: color-mix(in srgb, var(--turn) 40%, transparent);
 }
 
 .sw-player.gone {

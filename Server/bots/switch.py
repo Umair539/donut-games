@@ -11,8 +11,7 @@ import time
 from collections import Counter
 
 from Server.games.switch import (
-    IMMEDIATE, JACK, POWER, SKIP, SUITS, TWO, Switch, connects, is_black_jack, new_deck, rank,
-    suit,
+    IMMEDIATE, JACK, POWER, SKIP, SUITS, TWO, connects, is_black_jack, new_deck, rank, suit,
 )
 
 PLAY_LIMIT = 400  # different plays listed at most, for a hand so big that listing all is slow

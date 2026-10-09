@@ -34,6 +34,7 @@ The server and the page around each game are shared, so a new game only has to p
 ### scripts
 * **`make_cards.py`**: Draws the Donut Cards faces from the donut sprites, one colour per suit. Needs Pillow. Run it again after changing a sprite.
 * **`arena.py`**: Plays bots against each other and reports how often each wins, e.g. `python scripts/arena.py search heuristic --games 500 --workers 8`.
+* **`stress.py`**: Load tests a server you run yourself (never the real one): many simulated people playing Connect Donut, and people against bots, while it times how long moves take to come back. See [Limits and load](#limits-and-load).
 
 ### tests
 * Tests for the games, the room framework (using a made-up 2-4 player game), the server, and saving and restoring rooms across a restart.
@@ -102,6 +103,23 @@ In a game that has bots, the host can fill seats with them in the lobby. A bot m
 Names are optional. They are tidied up (no control characters, single spaces, at most 16 characters) and an empty name becomes "Player". If a name is already taken in the room, a number is added, so a second "Sam" becomes "Sam 2". Names only live as long as the room does, and nothing is stored afterwards.
 
 If a player disconnects they have 60 seconds to come back before their seat is lost. Rooms are removed as soon as everyone has left, or after 10 minutes without activity in the lobby (15 once the game has started).
+
+### Limits and load
+
+So one person (or script) can't fill the server, **`Server/core/limits.py`** caps each address at 40 connections, 10 open rooms it made and 30 new rooms in 10 minutes, and each connection at about 5 messages a second (with bursts of 20). They're generous because a whole school or house can share an address. The address comes from Cloudflare's `CF-Connecting-IP` header, which is only trusted on connections from a private address: in production the server only listens on 127.0.0.1, so everything comes through the tunnel. The whole server holds at most 1,000 rooms.
+
+Bots think in two separate low-priority processes. In threads, a thinking bot held Python's lock and every other player's moves waited for it.
+
+From `scripts/stress.py` against the server image limited to a quarter of a CPU core (what the e2-micro VM sustains) and 600 MB:
+
+| Load | Move comes back in (typical, slowest 5%) | Server |
+| --- | --- | --- |
+| 1,000 people playing (500 rooms) | 2 ms, 4 ms | 30% of its CPU, 120 MB |
+| ~2,000 people (990 rooms, the cap) | 2 ms, 74 ms | all its CPU, 210 MB |
+| 200 people and 3 bot games | 2 ms, 80 ms (226 ms, 1 s with bots in threads) | all its CPU |
+| 200 people and 10 bot games | 3 ms, 84 ms; bots take 4.6 s to answer instead of 1.2 s | all its CPU, 80 MB |
+
+So people's games stay quick however busy it gets. Bots are what run out first: with more than a few bot games at once, the bots take longer to answer.
 
 ### Surviving a restart
 

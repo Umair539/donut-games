@@ -3,6 +3,8 @@ import json
 import os
 import socket
 import time
+from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -13,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from Server.bots import BOTS
 from Server.core.base import GameError
+from Server.core.limits import AddressLimits, MessageBucket, client_address
 from Server.core.rooms import RoomError, RoomManager
 from Server.games import GAMES
 
@@ -21,6 +24,7 @@ MAX_MESSAGE_SIZE = 1024  # characters, plenty for any valid message
 SWEEP_INTERVAL = 1  # seconds between checks for turn timers, expired seats and dead rooms
 BOT_INTERVAL = 0.2  # seconds between checks for bots whose turn it is
 SAVE_INTERVAL = 30  # seconds between saves, which only matter if the server crashes
+BOT_PROCESSES = 2  # bots thinking at once; any more wait their turn
 
 # Where rooms are saved so a restart (a deploy) doesn't end everyone's game. Unset means rooms
 # only live in memory, which is how local play and the tests work.
@@ -32,6 +36,7 @@ SNAPSHOT_PATH = os.environ.get("SNAPSHOT_PATH")
 ALLOWED_ORIGINS = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
 
 rooms = RoomManager()
+limits = AddressLimits()
 
 
 async def send(socket, message):
@@ -74,6 +79,7 @@ async def sweep_forever():
         await asyncio.sleep(SWEEP_INTERVAL)
         now = time.monotonic()
         changed, removed = rooms.sweep(now)
+        limits.forget_old(now)
         for room in changed:
             await broadcast(room)
         for room in removed:
@@ -85,15 +91,43 @@ async def sweep_forever():
 
 thinking = set()  # bots working out a move, kept here so the tasks aren't garbage collected
 
+# Bots think in other processes. In a thread, a bot thinking holds Python's lock nearly all
+# the time, and every other player's move waits for it: in a load test, three bot games made
+# everyone's moves take a second to come back. The processes run at a lower priority, so the
+# server always goes first and bots get the CPU that's left.
+bot_pool = None
+
+
+def start_bot_process():
+    if hasattr(os, "nice"):  # not on Windows, where only local play happens
+        os.nice(10)
+
+
+def bot_choose(brain, game, player):
+    """Runs in a bot process, on a copy of the bot sent over each time, so it needs fresh
+    luck or it would make the same random choices on every move."""
+    if hasattr(brain, "rng"):
+        brain.rng.seed()
+    return brain.choose(game, player)
+
+
+def new_bot_pool():
+    return ProcessPoolExecutor(BOT_PROCESSES, initializer=start_bot_process)
+
 
 async def think(room, seat, game, due, moves):
-    """Let a bot choose its move in a thread, so a slow one doesn't hold up everyone else,
-    then play it when it's due, if the game hasn't moved on in the meantime."""
+    """Let a bot choose its move in a bot process, so a slow one doesn't hold up everyone
+    else, then play it when it's due, if the game hasn't moved on in the meantime."""
+    global bot_pool
+    pool = bot_pool
     try:
-        actions = await asyncio.to_thread(seat.brain.choose, game, seat.player)
+        actions = await asyncio.get_running_loop().run_in_executor(
+            pool, bot_choose, seat.brain, game, seat.player)
     except Exception as e:
         print(f"Bot {seat.bot} in room {room.code} failed: {e!r}")
         actions = None
+        if isinstance(e, BrokenProcessPool) and bot_pool is pool:  # a process died
+            bot_pool = new_bot_pool()
     await asyncio.sleep(max(0, due - time.monotonic()))
     if not room.closed and room.bot_move(seat, actions, moves, time.monotonic()):
         await broadcast(room)
@@ -110,6 +144,8 @@ async def bots_forever():
 
 @asynccontextmanager
 async def lifespan(app):
+    global bot_pool
+    bot_pool = new_bot_pool()
     if SNAPSHOT_PATH:
         count = rooms.load(SNAPSHOT_PATH, time.monotonic())
         print(f"Restored {count} room(s) from {SNAPSHOT_PATH}")
@@ -118,6 +154,7 @@ async def lifespan(app):
     for task in tasks:
         task.cancel()
     save_rooms()  # uvicorn has closed every connection by now, so nothing changes after this
+    bot_pool.shutdown(wait=False, cancel_futures=True)
 
 
 app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
@@ -128,10 +165,12 @@ app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_methods=
 class Connection:
     """One browser tab's WebSocket and the seat it holds, if any."""
 
-    def __init__(self, socket):
+    def __init__(self, socket, address):
         self.socket = socket
+        self.address = address
         self.room = None
         self.seat = None
+        self.bucket = MessageBucket(time.monotonic())
 
     async def handle(self, msg):
         kind = msg.get("type")
@@ -143,7 +182,10 @@ class Connection:
             raise RoomError("Not in a game")
 
         if kind == "create":
+            limits.check_new_room(self.address, rooms.made_by(self.address), now)
             room = rooms.create(now, msg.get("game"), msg.get("settings", {}))
+            room.creator = self.address
+            limits.room_made(self.address, now)
             await self._seated(room, room.join(self.socket, now, msg.get("name")))
 
         elif kind == "join":
@@ -240,8 +282,12 @@ async def websocket_endpoint(socket: WebSocket):
     if not origin_allowed(socket):
         await socket.close(code=1008)
         return
+    address = client_address(socket)
     await socket.accept()
-    conn = Connection(socket)
+    if not limits.connect(address):
+        await close(socket, "Too many connections from your network, try again later")
+        return
+    conn = Connection(socket, address)
     try:
         while True:
             message = await socket.receive()
@@ -258,11 +304,15 @@ async def websocket_endpoint(socket: WebSocket):
             if not isinstance(msg, dict):
                 await send(socket, {"type": "error", "message": "Invalid message"})
                 continue
+            if not conn.bucket.take(time.monotonic()):
+                await send(socket, {"type": "error", "message": "Slow down"})
+                continue
             try:
                 await conn.handle(msg)
             except (RoomError, GameError) as e:
                 await send(socket, {"type": "error", "message": str(e)})
     finally:
+        limits.disconnect(address)
         await conn.disconnected()
 
 

@@ -88,6 +88,7 @@ class Room:
         self.host = None
         self.rematch = set()  # players who asked for a rematch
         self.closed = None  # reason, once the room has been shut down
+        self.creator = None  # address of whoever made it, for the per-address room limit
         self.last_active = now
         self.deadline = None  # when the current turn runs out, if the game has a turn timer
         self.paused = False  # the turn timer waits for everyone to reconnect after a restart
@@ -465,6 +466,11 @@ class RoomManager:
 
     def remove(self, room):
         self.rooms.pop(room.code, None)
+
+    def made_by(self, address):
+        """How many open rooms this address made. Rooms restored after a restart don't
+        remember who made them."""
+        return sum(1 for room in self.rooms.values() if room.creator == address)
 
     def bots_ready(self):
         """Every bot whose turn has come, as (room, seat, game copy, when, move count)."""

@@ -17,6 +17,7 @@ pytest.importorskip("playwright", reason="needs requirements-ui.txt")
 import uvicorn  # noqa: E402
 
 from Server.core import app as server  # noqa: E402
+from Server.core.limits import AddressLimits  # noqa: E402
 
 
 def free_port():
@@ -86,6 +87,7 @@ class LiveServer:
 def live_server(tmp_path):
     """Saves rooms like the real deploy, so stop() then start() is a restart that keeps games."""
     server.rooms.rooms.clear()
+    server.limits = AddressLimits()  # every test connects from here, so start each one afresh
     live = LiveServer(free_port(), str(tmp_path / "rooms.json"))
     live.start()
     yield live

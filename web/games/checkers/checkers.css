@@ -7,13 +7,22 @@
   --turn: #ff9a3c; /* whoever's turn it is, and the donut they've picked up */
 }
 
+/* the round sits in the middle of the page, whatever the widths of the names either side */
 .ck-players {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 12px;
   max-width: 640px;
   margin: 0 auto;
+}
+
+.ck-players > :first-child {
+  justify-self: start;
+}
+
+.ck-players > :last-child {
+  justify-self: end;
 }
 
 .ck-tag {

@@ -1,6 +1,6 @@
 name: Build and push to ECR (retired, manual only)
 
-# Retired: the site runs on Google Cloud now (see gar.yml). Kept for completeness with
+# Retired: the site runs on Google Cloud now (see deploy.yml). Kept for completeness with
 # infra/aws/. Manual runs only.
 on:
   workflow_dispatch:

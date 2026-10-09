@@ -69,7 +69,7 @@ pip install -r requirements-ui.txt
 playwright install chromium
 pytest tests/ui                  # add --headed to watch
 ```
-In GitHub Actions they run before both deploys (**`.github/workflows/ui-tests.yml`**).
+In GitHub Actions they run before every deploy (**`.github/workflows/ui-tests.yml`**).
 
 ---
 
@@ -77,7 +77,7 @@ In GitHub Actions they run before both deploys (**`.github/workflows/ui-tests.ym
 
 The game server runs as one Docker container on a free-tier Google Cloud VM, reached at `server.donutgames.co.uk` through a Cloudflare Tunnel. The web pages are on Cloudflare Pages at `donutgames.co.uk`. **`infra/google/`** is the Terraform, and its [README](infra/google/README.md) covers setting it up and fixing it.
 
-* **Code:** push to `main`. GitHub Actions runs the tests, builds the image and deploys it within seconds (`gar.yml`), and changes to `web/` go to Pages (`pages.yml`). Games in progress carry on through a deploy, see below.
+* **Code:** push to `main`. GitHub Actions (`deploy.yml`) runs flake8, the tests and the browser tests, then builds the server image and deploys it within seconds, then sends changes to `web/` to Pages. Nothing goes out unless every check passed, and the pages wait for the server, so new pages never talk to an old server. Games in progress carry on through a deploy, see below.
 * **The VM's startup script** (`infra/google/startup.sh.tftpl`) isn't deployed by GitHub: run `terraform apply` in `infra/google`, then stop and start the VM so it runs the new script.
 
 Run **one instance only**. Rooms live in the memory of that one process.

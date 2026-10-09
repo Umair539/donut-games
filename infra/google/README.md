@@ -12,7 +12,7 @@ Get-Content ..\..\.env | ForEach-Object { $n,$v = $_ -split '=',2; Set-Item "env
 ```
 
 How it fits together: the web pages are on Cloudflare Pages at `donutgames.co.uk`, deployed by
-`.github/workflows/pages.yml`. The game server is the e2-micro, reached at
+`.github/workflows/deploy.yml` after the server. The game server is the e2-micro, reached at
 `server.donutgames.co.uk` through a Cloudflare Tunnel, which the VM opens outwards. So the VM
 has no open web port, and only accepts WebSockets from the Pages site. The container saves its
 rooms to the `donut-data` Docker volume when it stops, so games carry on through a deploy (see
@@ -44,8 +44,8 @@ are secret.
 
 ## 3. Push the first image
 
-Push to `main` or run **Build and push to Google Artifact Registry** by hand
-(`.github/workflows/gar.yml`). It fails until the three variables above are set.
+Push to `main` or run **Test and deploy** by hand (`.github/workflows/deploy.yml`). Its server
+job fails until the three variables above are set, and its pages job until step 4 is done.
 
 ## 4. Create the server, tunnel and Pages site
 
@@ -60,8 +60,8 @@ Then let GitHub deploy the pages. In the repo: **Settings > Secrets and variable
 | Variable | `CLOUDFLARE_ACCOUNT_ID` | `cloudflare_account_id` in `cloudflare.tf` |
 | Secret | `CLOUDFLARE_API_TOKEN` | a separate token with only Account > Cloudflare Pages: Edit |
 
-Run **Deploy web pages to Cloudflare Pages** by hand once. After that it runs on every push that
-changes `web/`.
+Run **Test and deploy** by hand once. After that it deploys the pages on every push that changes
+`web/`.
 
 ## 5. Moving an existing server over from the AAAA record
 
@@ -81,7 +81,7 @@ b. Reset the VM so the new startup script runs (installs cloudflared, moves the 
 gcloud compute instances reset donut-games --zone us-east1-b
 ```
 
-c. Set the GitHub variable and secret from step 4 and run the Pages workflow.
+c. Set the GitHub variable and secret from step 4 and run **Test and deploy**.
 
 d. Check `https://server.donutgames.co.uk/healthz` gives `{"ok":true}`, and play a game at the
    `pages_url` output.
@@ -92,7 +92,7 @@ e. In Cloudflare DNS, delete the **AAAA** record for `donutgames.co.uk`, then ru
 
 ## Deploying from GitHub over SSH
 
-After pushing an image, `gar.yml` SSHes in through the tunnel at `ssh.donutgames.co.uk` and runs
+After pushing an image, `deploy.yml` SSHes in through the tunnel at `ssh.donutgames.co.uk` and runs
 `update.sh`, so the new version is live within seconds. Cloudflare Access only lets the GitHub
 service token through, and the deploy key can only run `update.sh`. Cron still checks hourly in
 case a deploy didn't happen. Setup (`deploy.tf`):

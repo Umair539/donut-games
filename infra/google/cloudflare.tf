@@ -71,7 +71,7 @@ resource "cloudflare_dns_record" "server" {
 
 # --- Web pages ---
 
-# Deployed by .github/workflows/pages.yml, not built by Cloudflare
+# Deployed by .github/workflows/deploy.yml, not built by Cloudflare
 resource "cloudflare_pages_project" "web" {
   account_id        = var.cloudflare_account_id
   name              = var.name

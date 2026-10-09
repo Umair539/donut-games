@@ -1,7 +1,7 @@
 name: Browser tests
 
-# The pages in Chromium against the real server (tests/ui). Both deploys wait for this:
-# gar.yml before the server goes out and pages.yml before the web pages do.
+# The pages in Chromium against the real server (tests/ui). deploy.yml waits for this before
+# deploying either the server or the web pages.
 on:
   workflow_call:
   workflow_dispatch:

@@ -139,13 +139,18 @@ def back_colour(i, j, period=8):
 def back():
     """The back of every card: the faces' shape and border, around a diamond pattern."""
     card = blank(BACK_BORDER)
-    cols = (W - 2 * BACK_INSET) // BACK_PIXEL
-    rows = (H - 2 * BACK_INSET) // BACK_PIXEL
+    # an odd number of pixels each way, counted from the middle one, so the pattern is the
+    # same mirrored left to right and top to bottom
+    cols = (W - 2 * BACK_INSET) // BACK_PIXEL // 2 * 2 - 1
+    rows = (H - 2 * BACK_INSET) // BACK_PIXEL // 2 * 2 - 1
+    mid_col, mid_row = cols // 2, rows // 2
     pattern = Image.new("RGBA", (cols, rows))
-    pattern.putdata([back_colour(i, j) for j in range(rows) for i in range(cols)])
+    pattern.putdata([back_colour(i - mid_col, j - mid_row)
+                     for j in range(rows) for i in range(cols)])
     pattern = pattern.resize((cols * BACK_PIXEL, rows * BACK_PIXEL), Image.NEAREST)
     mask = Image.new("L", pattern.size, 0)
-    ImageDraw.Draw(mask).rounded_rectangle((0, 0, *pattern.size), radius=12, fill=255)
+    ImageDraw.Draw(mask).rounded_rectangle(
+        (0, 0, pattern.width - 1, pattern.height - 1), radius=12, fill=255)
     x, y = (W - pattern.width) // 2, (H - pattern.height) // 2
     card.paste(pattern, (x, y), mask)
     return card

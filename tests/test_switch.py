@@ -681,3 +681,22 @@ def test_failing_to_go_out_after_calling_only_picks_up_once():
     game = setup(hands={1: ["2H"], 2: ["9C"]}, pile=["3C", "7D"])
     play(game, "2H")  # can't go out on a power card
     assert game.hands[1] == ["7D"]
+
+
+def test_a_mistake_on_the_go_after_calling_costs_the_mistake_and_the_call():
+    game = setup(hands={1: ["6H", "7H", "3C"], 2: ["9S", "9D"]}, pile=["2D"] * 5,
+                 called=False, mistakes="keep")
+    call(game)
+    draw(game)
+    draw(game)
+    game.apply(1, {"type": "play", "cards": ["6H", "7H", "3C"]})  # 3C doesn't go on 7H
+    assert sorted(game.hands[1]) == ["2D", "2D", "2D", "3C"]  # 1 for each
+    assert game.view(2)["called"] == []
+
+
+def test_a_mistake_on_the_go_you_call_keeps_the_call():
+    game = setup(hands={1: ["6H", "3C"], 2: ["9S", "9D"]}, pile=["2D"] * 5, called=False,
+                 mistakes="keep")
+    call(game)
+    game.apply(1, {"type": "play", "cards": ["3C"]})
+    assert game.turn == 2 and game.view(2)["called"] == [1]

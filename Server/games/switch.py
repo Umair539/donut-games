@@ -87,7 +87,7 @@ class Switch(BaseGame):
         {"key": "hand_size", "label": "Starting cards", "type": "int", "min": 1, "max": 7,
          "default": 7},
         {"key": "jack_penalty", "label": "Chocolate/blue jack pick-up", "type": "int", "min": 1,
-         "max": 7, "default": 5},
+         "max": 7, "default": 7},
         {"key": "decks", "label": "Decks (6+ players always get 2)", "type": "int", "min": 1,
          "max": 2, "default": 1},
         {"key": "eights", "label": "Answering an 8 with an 8", "type": "choice",
@@ -124,7 +124,7 @@ class Switch(BaseGame):
     def create(cls, settings, num_players):
         return cls(num_players, **settings)
 
-    def __init__(self, players, hand_size=7, jack_penalty=5, decks=1, eights=STACK,
+    def __init__(self, players, hand_size=7, jack_penalty=7, decks=1, eights=STACK,
                  mistakes=KEEP, force_play=False, play_on=False, call_penalty=False,
                  timer=False, turn_seconds=20, rng=None):
         if not _is_int(players) or not self.min_players <= players <= self.max_players:

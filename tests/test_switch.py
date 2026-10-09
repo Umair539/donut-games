@@ -188,14 +188,14 @@ def test_black_jack_and_red_jack():
     game = setup(top="5S", hands={1: ["JS", "4C"], 2: ["JH", "JC", "9C"]})
     play(game, "JS")
     play(game, "JH", "JC")  # cancel, then attack back
-    assert game.pending == {"kind": "jack", "count": 5}
+    assert game.pending == {"kind": "jack", "count": 7}  # as many as a starting hand
 
 
 def test_black_jacks_stack():
     game = setup(top="5S", hands={1: ["JS", "4C"], 2: ["JC", "9C"]})
     play(game, "JS")
     play(game, "JC")
-    assert game.pending["count"] == 10
+    assert game.pending["count"] == 14
 
 
 def test_eights_skip_and_pass_on():

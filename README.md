@@ -145,7 +145,7 @@ On your turn you either **play** or **pick up**. Your first card must match the 
 | **Ace** | Wild as the first card of your turn: play it on anything. If an ace is the last card of your turn, pick the suit the next player must follow. Otherwise keep going from it, e.g. A♠ then 2♠ or K♠. |
 | **2** | The next player picks up 2, unless they play a 2 and pass on the total. |
 | **8** | The next player misses a turn. Two 8s skip two players, and so on. What answering an 8 with your own 8s does is a setting: *Stack* (the default) adds yours on, so two 8s answered with one skip the next 3 players; *Replace* starts again from yours, so only the player after you is skipped; *Skip straight away* means an 8 can't be answered at all. |
-| **Chocolate or blue jack** | The next player picks up 5 (the host can choose 1 to 7), unless they play a chocolate or blue jack to pass it on, or a pink or orange jack to cancel it. |
+| **Chocolate or blue jack** | The next player picks up 7 (the host can choose 1 to 7), unless they play a chocolate or blue jack to pass it on, or a pink or orange jack to cancel it. |
 | **Queen** | Must be covered in the same turn by a card of its suit, or by another queen (which then needs covering too). If you can't cover it, you pick up 1. |
 | **King** | Reverses play, but only if your turn ends on it. Kings at the end of a turn cancel out in pairs: K or K K K reverses, K K or K K K K doesn't, and K Q♠ 3♠ doesn't either. Whoever plays next is outlined in orange. |
 

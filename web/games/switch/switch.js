@@ -336,7 +336,7 @@
       "Each donut is a suit: chocolate ♠ and blue ♣ are the dark suits, pink ♥ and orange ♦ the bright ones.",
       "Be the first to empty your hand. On your turn play a card matching the suit or rank of the top card, or an ace (wild, you pick the suit). Can't or won't? Pick up a card.",
       "You can play several cards in one turn: same rank, or the same suit one step up or down (A sits next to 2 and K).",
-      "2: next player picks up 2 (stacks). Chocolate or blue jack: next player picks up 5, or what the host chose (a pink or orange jack cancels it). 8: next player misses a turn. Counter an attack with the same kind of card, or take it. Whether 8s answered with 8s add up, start again or can't be answered at all is the host's choice, shown in the lobby.",
+      "2: next player picks up 2 (stacks). Chocolate or blue jack: next player picks up 7, or what the host chose (a pink or orange jack cancels it). 8: next player misses a turn. Counter an attack with the same kind of card, or take it. Whether 8s answered with 8s add up, start again or can't be answered at all is the host's choice, shown in the lobby.",
       "King: reverses direction when your turn ends on it (an odd number of kings at the end: K or K K K, not K K). The player whose name is outlined in orange goes next. Queen: cover it with the same suit or another queen, or pick up 1.",
       "You can't go out on a 2, 8, J, Q, K or ace: you pick up 1 instead.",
       "Play a card that doesn't go (if the host allows it) and it comes back to you with a pick-up of 1, plus any attack you were facing. Depending on the host's choice, the cards before it stay played or come back too.",

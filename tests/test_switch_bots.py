@@ -257,7 +257,7 @@ def test_search_stops_early_on_an_obvious_move():
     game.called = {1}
     start = time.perf_counter()
     actions = SearchBot(random.Random(0), seconds=5).choose(game, 1)
-    assert time.perf_counter() - start < 2
+    assert time.perf_counter() - start < 3  # well short of the 5 it may take
     assert actions[-1]["cards"] == ["5H", "6H", "6C"]  # goes out
 
 

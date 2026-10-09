@@ -426,7 +426,7 @@ def test_cards_rematch_goes_ahead_without_the_player_who_left(player, live_serve
 
 
 def square(page, name):
-    """A square on the checkers board by its usual name, a1 in chocolate's bottom left."""
+    """A square on the checkers board by its usual name, a1 in blue's bottom left."""
     return page.get_by_role("button", name=re.compile(rf"^{name}(,|$)"))
 
 
@@ -444,7 +444,7 @@ def test_checkers_move_and_each_side_sees_its_own_donuts_at_the_bottom(player):
     expect(status(bob)).to_have_text("Their turn")
     for page in (ann, bob):
         expect(page.locator("img[alt='your donut']")).to_have_count(12)
-        # the bottom left square is your own: a1 for chocolate, h8 for pink
+        # the bottom left square is your own: a1 for blue, h8 for pink
         expect(page.locator(".ck-cell").nth(56)).to_have_accessible_name(
             "a1, your donut" if page is ann else "h8, your donut")
 

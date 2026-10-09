@@ -11,9 +11,9 @@
   const SIZE = 8;
   const KING = 2; // a king is stored as its player's number + KING
   const PIECES = {
-    1: "sprites/choccy.png",
+    1: "sprites/blue.png",
     2: "sprites/pink.png",
-    3: "games/checkers/king_choc.png",
+    3: "games/checkers/king_blue.png",
     4: "games/checkers/king_pink.png",
   };
   let send = () => {};
@@ -216,7 +216,7 @@
       { heading: "Moving" },
       {
         list: [
-          "Chocolate goes first. Donuts move one square diagonally forward, onto the dark squares.",
+          "Blue goes first. Donuts move one square diagonally forward, onto the dark squares.",
           "Click one of your donuts, then the square to move it to.",
         ],
       },

@@ -174,7 +174,7 @@
 
 /* url()s here are relative to this stylesheet */
 .ck-preview i[data-piece="1"] {
-  background-image: url("../../sprites/choccy.png");
+  background-image: url("../../sprites/blue.png");
 }
 
 .ck-preview i[data-piece="2"] {

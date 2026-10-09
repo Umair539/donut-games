@@ -179,7 +179,7 @@ def main():
     print(f"Drew {len(SUITS) * len(RANKS)} cards and the back into {OUT.relative_to(ROOT)}")
 
     # the checkers kings are the king cards' donuts, for the two colours the game uses
-    for name, suit in (("choc", "spades"), ("pink", "hearts")):
+    for name, suit in (("blue", "clubs"), ("pink", "hearts")):
         _, full_name, colour = SUITS[suit]
         full = Image.open(SPRITES / full_name).convert("RGBA")
         lettered(full, "K", colour).save(CHECKERS / f"king_{name}.png", optimize=True)

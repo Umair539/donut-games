@@ -250,22 +250,46 @@ function buildGameList() {
 
 // ---------- instructions overlay ----------
 
+// A game's instructions are a list of parts: a string is a paragraph, { heading } starts a
+// section, { list } is bullet points (each a string, or [term, text] to lead with a bold
+// term), and { big } is one huge line.
+function helpPart(part) {
+  if (typeof part === "string") {
+    const p = document.createElement("p");
+    p.textContent = part;
+    return p;
+  }
+  if (part.heading) {
+    const h = document.createElement("h3");
+    h.textContent = part.heading;
+    return h;
+  }
+  if (part.list) {
+    const ul = document.createElement("ul");
+    for (const item of part.list) {
+      const li = document.createElement("li");
+      if (Array.isArray(item)) {
+        const term = document.createElement("strong");
+        term.textContent = item[0];
+        li.append(term, " " + item[1]);
+      } else {
+        li.textContent = item;
+      }
+      ul.append(li);
+    }
+    return ul;
+  }
+  const p = document.createElement("p");
+  p.className = "help-big";
+  p.textContent = part.big;
+  return p;
+}
+
 function openHelp(info) {
   const game = Games[info.name];
   const parts = (game && game.instructions) || ["No instructions for this game yet."];
   $("help-game").textContent = info.title;
-  $("help-body").replaceChildren(
-    ...parts.map((part) => {
-      const p = document.createElement("p");
-      if (typeof part === "string") {
-        p.textContent = part;
-      } else {
-        p.className = "help-big";
-        p.textContent = part.big;
-      }
-      return p;
-    }),
-  );
+  $("help-body").replaceChildren(...parts.map(helpPart));
   $("help").hidden = false;
   $("help-close").focus();
 }

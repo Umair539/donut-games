@@ -233,6 +233,26 @@ p {
   line-height: 1.45;
 }
 
+.help-window h3 {
+  margin: 18px 0 6px;
+  font-size: 1rem;
+  color: var(--pink);
+}
+
+.help-window ul {
+  margin: 0 0 10px;
+  padding-left: 1.2em;
+  line-height: 1.45;
+}
+
+.help-window li {
+  margin-bottom: 5px;
+}
+
+.help-window li::marker {
+  color: var(--muted);
+}
+
 .help-window .help-big {
   font-size: clamp(3rem, 18vw, 5rem);
   font-weight: 700;

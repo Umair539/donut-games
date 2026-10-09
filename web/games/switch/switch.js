@@ -333,14 +333,54 @@
   window.Games.switch = {
     icon: `${CARDS}ace_of_spades.png`,
     instructions: [
-      "Each donut is a suit: chocolate ♠ and blue ♣ are the dark suits, pink ♥ and orange ♦ the bright ones.",
-      "Be the first to empty your hand. On your turn play a card matching the suit or rank of the top card, or an ace (wild, you pick the suit). Can't or won't? Pick up a card.",
-      "You can play several cards in one turn: same rank, or the same suit one step up or down (A sits next to 2 and K).",
-      "2: next player picks up 2 (stacks). Chocolate or blue jack: next player picks up 7, or what the host chose (a pink or orange jack cancels it). 8: next player misses a turn. Counter an attack with the same kind of card, or take it. Whether 8s answered with 8s add up, start again or can't be answered at all is the host's choice, shown in the lobby.",
-      "King: reverses direction when your turn ends on it (an odd number of kings at the end: K or K K K, not K K). The player whose name is outlined in orange goes next. Queen: cover it with the same suit or another queen, or pick up 1.",
-      "You can't go out on a 2, 8, J, Q, K or ace: you pick up 1 instead.",
-      "Play a card that doesn't go (if the host allows it) and it comes back to you with a pick-up of 1, plus any attack you were facing. Depending on the host's choice, the cards before it stay played or come back too.",
-      "Cards! Press the red Cards button during the turn before the one you plan to go out on, then play your last cards on your next go. Everyone sees who has called. Go out without calling on your previous turn and you pick up 1 instead. If the host switched it on, calling and then not going out on your next go costs you 1 too. Being skipped by an 8 doesn't use up your call.",
+      "Be the first to empty your hand.",
+      { heading: "Suits" },
+      {
+        list: [
+          ["Dark:", "chocolate ♠ and blue ♣."],
+          ["Bright:", "pink ♥ and orange ♦."],
+        ],
+      },
+      { heading: "Your turn" },
+      {
+        list: [
+          "Play a card with the same suit or number as the top card, or an ace.",
+          "Keep adding cards in the same turn if each one follows the last: the same number, or the same suit one up or down. A sits next to both 2 and K.",
+          "Can't or don't want to? Pick up 1 card.",
+        ],
+      },
+      { heading: "Special cards" },
+      {
+        list: [
+          ["Ace:", "goes on anything. End on one and choose the next suit."],
+          ["2:", "the next player picks up 2, unless they play a 2 to pass it on."],
+          ["8:", "the next player misses a turn. Whether they can answer with an 8 is the host's choice (see the lobby)."],
+          ["Chocolate or blue jack:", "the next player picks up 7 (or the host's number). Pass it on with another dark jack, or cancel it with a pink or orange one."],
+          ["Queen:", "cover it in the same turn with its suit or another queen, or pick up 1."],
+          ["King:", "reverses play if your turn ends on it. Kings cancel in pairs: K K doesn't reverse, K K K does."],
+        ],
+      },
+      { heading: "Going out" },
+      {
+        list: [
+          "Press the red Cards! button the turn before you go out. Forget, and you pick up 1 instead.",
+          "You can't finish on an A, 2, 8, J, Q or K: you pick up 1 instead.",
+          "Being skipped by an 8 doesn't use up your call. If the host chose it, calling and not going out costs 1.",
+        ],
+      },
+      { heading: "Mistakes" },
+      {
+        list: [
+          "If the host allows it, you can play a card that doesn't go. It comes back to you, and you pick up 1 plus any attack you were facing.",
+        ],
+      },
+      { heading: "Reading the table" },
+      {
+        list: [
+          ["Pink outline:", "whose turn it is."],
+          ["Orange outline:", "who goes next."],
+        ],
+      },
     ],
     preview,
     mount,

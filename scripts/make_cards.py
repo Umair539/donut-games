@@ -2,7 +2,8 @@
 
 Each suit is a donut colour. Ace to 10 lay out donuts with holes like the pips on a normal
 card; jack, queen and king show two full donuts, one turned upside down, under a big letter.
-The back is left alone. Needs Pillow: pip install pillow, then python scripts/make_cards.py
+The back is the same shape, with the same border, around a pixel-art diamond pattern.
+Needs Pillow: pip install pillow, then python scripts/make_cards.py
 """
 
 from pathlib import Path
@@ -111,6 +112,45 @@ def face_card(rank, full, colour, border):
     return card
 
 
+BACK_PIXEL = 6  # the back's pattern is pixel art, each pixel this big, like the sprites
+BACK_INSET = 30  # white margin between the border and the pattern
+BACK_BORDER = (172, 50, 50)
+LINE = (245, 216, 216)
+BASE = (217, 87, 99)
+DARK = (172, 50, 50)
+SHINE = (255, 170, 170)
+
+
+def back_colour(i, j, period=8):
+    """The colour of one pixel of the pattern: thin pale lines running both ways diagonally,
+    making diamonds, each with a dark jewel in the middle and a shine on it."""
+    a, b = (i + j) % period, (i - j) % period  # where it is across each set of lines
+    if a == 0 or b == 0:
+        return LINE
+    half = period // 2
+    d = abs(a - half) + abs(b - half)
+    if d == 0:
+        return SHINE
+    if d <= 2:
+        return DARK
+    return BASE
+
+
+def back():
+    """The back of every card: the faces' shape and border, around a diamond pattern."""
+    card = blank(BACK_BORDER)
+    cols = (W - 2 * BACK_INSET) // BACK_PIXEL
+    rows = (H - 2 * BACK_INSET) // BACK_PIXEL
+    pattern = Image.new("RGBA", (cols, rows))
+    pattern.putdata([back_colour(i, j) for j in range(rows) for i in range(cols)])
+    pattern = pattern.resize((cols * BACK_PIXEL, rows * BACK_PIXEL), Image.NEAREST)
+    mask = Image.new("L", pattern.size, 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, *pattern.size), radius=12, fill=255)
+    x, y = (W - pattern.width) // 2, (H - pattern.height) // 2
+    card.paste(pattern, (x, y), mask)
+    return card
+
+
 def main():
     for suit, (holed_name, full_name, colour) in SUITS.items():
         holed = Image.open(SPRITES / holed_name).convert("RGBA")
@@ -123,7 +163,8 @@ def main():
                 card = number_card(rank, holed, border)
             corners(card, rank if rank.isdigit() else rank[0].upper(), colour)
             card.save(OUT / f"{rank}_of_{suit}.png", optimize=True)
-    print(f"Drew {len(SUITS) * len(RANKS)} cards into {OUT.relative_to(ROOT)}")
+    back().save(OUT / "back.png", optimize=True)
+    print(f"Drew {len(SUITS) * len(RANKS)} cards and the back into {OUT.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":

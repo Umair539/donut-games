@@ -21,7 +21,7 @@ def test_healthz(client):
 
 def test_games_listing(client):
     games = client.get("/api/games").json()
-    assert [g["name"] for g in games] == ["connect4", "switch"]
+    assert [g["name"] for g in games] == ["connect4", "switch", "checkers"]
     game = games[0]
     assert (game["min_players"], game["max_players"]) == (2, 2)
     keys = [s["key"] for s in game["settings"]]

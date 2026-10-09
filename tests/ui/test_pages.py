@@ -92,11 +92,12 @@ def cards_game(player, live_server, names, hands, top, pile=None, called=(), tog
 
 def test_home_lists_the_games(player):
     page = player()
-    expect(page.locator(".game-option")).to_have_count(2)
+    expect(page.locator(".game-option")).to_have_count(3)
     expect(page.locator(".game-option", has_text="Connect Donut")).to_contain_text("2 players")
     cards = page.locator(".game-option", has_text="Donut Cards")
     expect(cards).to_contain_text("British Blackjack")
     expect(cards).to_contain_text("2–10 players")
+    expect(page.locator(".game-option", has_text="Donut Checkers")).to_contain_text("2 players")
 
 
 def test_instructions_open_and_close(player):
@@ -419,3 +420,79 @@ def test_cards_rematch_goes_ahead_without_the_player_who_left(player, live_serve
         expect(page.locator(".sw-card")).to_have_count(7)
         expect(page.locator("#banner")).to_be_hidden()
     assert live_server.room(code).game.num_players == 2
+
+
+# ---- Donut Checkers
+
+
+def square(page, name):
+    """A square on the checkers board by its usual name, a1 in chocolate's bottom left."""
+    return page.get_by_role("button", name=re.compile(rf"^{name}(,|$)"))
+
+
+def checkers_game(player, toggles=()):
+    ann, bob = player("Ann"), player("Bob")
+    code = host(ann, "Donut Checkers", toggles)
+    join(bob, code)
+    start(ann, bob)
+    return ann, bob, code
+
+
+def test_checkers_move_and_each_side_sees_its_own_donuts_at_the_bottom(player):
+    ann, bob, _ = checkers_game(player)
+    expect(status(ann)).to_have_text("Your turn")
+    expect(status(bob)).to_have_text("Their turn")
+    for page in (ann, bob):
+        expect(page.locator("img[alt='your donut']")).to_have_count(12)
+        # the bottom left square is your own: a1 for chocolate, h8 for pink
+        expect(page.locator(".ck-cell").nth(56)).to_have_accessible_name(
+            "a1, your donut" if page is ann else "h8, your donut")
+
+    square(ann, "c3").click()
+    expect(ann.locator(".ck-cell.target")).to_have_count(2)
+    square(ann, "d4").click()
+    expect(status(bob)).to_have_text("Your turn")
+    expect(square(bob, "d4")).to_have_accessible_name("d4, opponent's donut")
+    expect(square(bob, "c3")).to_have_accessible_name("c3")
+
+
+def test_checkers_multi_jump_crowns_and_wins(player, live_server):
+    ann, bob, code = checkers_game(player, toggles=["Forced jumps"])
+
+    def setup(room):
+        board = [[0] * 8 for _ in range(8)]
+        board[4][1] = 1  # b4: jumps c5 to d6, then e7 to f8, where it's crowned
+        board[3][2] = board[1][4] = 2
+        room.game.board = board
+
+    live_server.push(code, setup)
+    expect(status(ann)).to_have_text("Your turn: you have to jump")
+    square(ann, "b4").click()
+    square(ann, "d6").click()
+    expect(status(ann)).to_have_text("Keep jumping!")
+    square(ann, "f8").click()
+    expect(status(ann)).to_have_text("You win! 🎉")
+    expect(status(bob)).to_have_text("You lose")
+    expect(ann.locator("img[alt='your king']")).to_have_count(1)
+    expect(bob.locator("img[alt=\"opponent's king\"]")).to_have_count(1)
+
+
+def test_checkers_without_forced_jumps_can_end_a_chain(player, live_server):
+    ann, bob, code = checkers_game(player)  # forced jumps are off unless the host turns them on
+
+    def setup(room):
+        board = [[0] * 8 for _ in range(8)]
+        board[7][0] = 1  # a1: jumps b2 to c3, and could go on over d4 to e5
+        board[6][1] = board[4][3] = board[0][7] = 2
+        room.game.board = board
+
+    live_server.push(code, setup)
+    expect(status(ann)).to_have_text("Your turn")
+    expect(ann.locator("[data-stop]")).to_be_hidden()
+    square(ann, "a1").click()
+    square(ann, "c3").click()
+    expect(status(ann)).to_have_text("Keep jumping, or end your turn")
+    ann.get_by_role("button", name="End turn").click()
+    expect(status(bob)).to_have_text("Your turn")
+    expect(ann.locator("[data-stop]")).to_be_hidden()
+    expect(square(bob, "d4")).to_have_accessible_name("d4, your donut")

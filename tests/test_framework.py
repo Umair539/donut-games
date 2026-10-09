@@ -467,6 +467,15 @@ def test_switch_timeout_picks_up_even_when_play_is_forced():
     assert room.game.turn != player
 
 
+def test_checkers_timeout_finishes_a_multi_jump():
+    room = timed_room("checkers")
+    game = room.game
+    game.board = [[0] * 8 for _ in range(8)]
+    game.board[7][0], game.board[6][1], game.board[4][3], game.board[0][7] = 1, 2, 2, 2
+    assert room.check_timer(now=20)
+    assert game.turn == 2 and game.board[3][4] == 1
+
+
 def test_an_action_restarts_the_clock():
     room = timed_room("connect4")
     room.action(room.seats[1], {"col": 0}, now=10)

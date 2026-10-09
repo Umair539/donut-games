@@ -1,4 +1,5 @@
-"""Draw the Donut Cards faces into web/games/switch/cards/ from the sprites in web/sprites/.
+"""Draw the Donut Cards faces into web/games/switch/cards/ from the sprites in web/sprites/,
+and the Donut Checkers kings, the same donut as the king cards, into web/games/checkers/.
 
 Each suit is a donut colour. Ace to 10 lay out donuts with holes like the pips on a normal
 card; jack, queen and king show two full donuts, one turned upside down, under a big letter.
@@ -13,6 +14,7 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parent.parent
 SPRITES = ROOT / "web" / "sprites"
 OUT = ROOT / "web" / "games" / "switch" / "cards"
+CHECKERS = ROOT / "web" / "games" / "checkers"
 
 # suit name: (donut with a hole, full donut, colour of the rank and letters)
 SUITS = {
@@ -100,12 +102,17 @@ def number_card(rank, holed, border):
     return card
 
 
+def lettered(full, letter, colour):
+    """A full donut at twice its size with a big letter on it."""
+    donut = full.resize((full.width * 2, full.height * 2), Image.NEAREST)
+    write(donut, (100, 100), letter, 95, fill=colour, stroke_width=6, stroke_fill="white")
+    return donut
+
+
 def face_card(rank, full, colour, border):
     """A full donut with the letter on it, readable in the top right, and the same again
     upside down in the bottom left."""
-    donut = full.resize((full.width * 2, full.height * 2), Image.NEAREST)
-    write(donut, (100, 100), rank[0].upper(), 95, fill=colour, stroke_width=6,
-          stroke_fill="white")
+    donut = lettered(full, rank[0].upper(), colour)
     card = blank(border)
     paste(card, donut, 260, 190)
     paste(card, donut, 140, 370, flip=True)
@@ -170,6 +177,13 @@ def main():
             card.save(OUT / f"{rank}_of_{suit}.png", optimize=True)
     back().save(OUT / "back.png", optimize=True)
     print(f"Drew {len(SUITS) * len(RANKS)} cards and the back into {OUT.relative_to(ROOT)}")
+
+    # the checkers kings are the king cards' donuts, for the two colours the game uses
+    for name, suit in (("choc", "spades"), ("pink", "hearts")):
+        _, full_name, colour = SUITS[suit]
+        full = Image.open(SPRITES / full_name).convert("RGBA")
+        lettered(full, "K", colour).save(CHECKERS / f"king_{name}.png", optimize=True)
+    print(f"Drew the checkers kings into {CHECKERS.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":

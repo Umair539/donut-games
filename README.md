@@ -1,7 +1,7 @@
 # Donut Games
 Donut-themed multiplayer games played in the browser. The host picks a game, chooses its settings and gets a 6-character code (or invite link) to share. Everyone waits in a lobby, and the host starts the game when they are ready. The Python server is the source of truth for every move and talks to the browsers over WebSockets.
 
-The server and the page around each game are shared, so a new game only has to provide its rules and its board. There are two games so far: Connect Donut (Connect Four) and Donut Cards (British Blackjack, the card game also called Switch, not the casino game).
+The server and the page around each game are shared, so a new game only has to provide its rules and its board. There are three games so far: Connect Donut (Connect Four), Donut Cards (British Blackjack, the card game also called Switch, not the casino game) and Donut Checkers (English draughts).
 
 **Play it:** https://donutgames.co.uk
 
@@ -16,6 +16,7 @@ The server and the page around each game are shared, so a new game only has to p
 
 ### Server/games: one file per game
 * **`connect4.py`**: Connect Donut rules, move validation and win checks.
+* **`checkers.py`**: Donut Checkers rules: compulsory jumps, multi-jumps, kings and the 40-move draw.
 * **`switch.py`**: Donut Cards rules: dealing, power cards, drawing and adding decks.
 * **`__init__.py`**: The list of games that can be hosted.
 
@@ -27,7 +28,7 @@ The server and the page around each game are shared, so a new game only has to p
 * **`index.html`**, **`style.css`**, **`app.js`**: The shared shell: game picker, settings form, lobby, and the frame around a game.
 * **`games/<name>/`**: One folder per game with its script and stylesheet.
 * **`sprites/`**: The donut sprites.
-* **`games/switch/cards/`**: The card images, drawn from the sprites by `scripts/make_cards.py`.
+* **`games/switch/cards/`**: The card images, drawn from the sprites by `scripts/make_cards.py`, which also draws the checkers kings in `games/checkers/`.
 
 ### scripts
 * **`make_cards.py`**: Draws the Donut Cards faces from the donut sprites, one colour per suit. Needs Pillow. Run it again after changing a sprite.

@@ -3,7 +3,13 @@
 SearchBot looks ahead with alpha-beta search, going a move deeper each time until its time
 is up, and plays the best move from the deepest search it finished. Positions are scored by
 every line of `amount` squares that only one player has donuts in: the more donuts in it,
-the more it's worth. It works on its own flat copy of the board, which it changes and changes
+the more it's worth.
+
+Easier levels look fewer moves ahead, and put some random noise on each move's score before
+picking, so they sometimes play a worse move. A win or a loss they can see is never blurred:
+they always take a win in reach and stop one they see coming.
+
+It works on its own flat copy of the board, which it changes and changes
 back as it searches, as the game's own checks are far too slow to search with."""
 import functools
 import random
@@ -47,10 +53,11 @@ class RandomBot:
 
 
 class SearchBot:
-    def __init__(self, rng=None, seconds=1.0, max_depth=42):
+    def __init__(self, rng=None, seconds=1.0, max_depth=42, noise=0):
         self.rng = rng or random.Random()
         self.seconds = seconds
         self.max_depth = max_depth
+        self.noise = noise  # how far each move's score may be pushed up or down at random
 
     def choose(self, game, player):
         self.cols, self.rows, self.amount = game.cols, game.rows, game.amount
@@ -75,15 +82,35 @@ class SearchBot:
         self.deadline = time.monotonic() + self.seconds
 
         best = next(c for c in self.order if self.heights[c] < self.rows)
+        reached = 0
         for depth in range(1, min(self.max_depth, self.left) + 1):
             try:
                 value, move = self._root(player, depth, best)
             except OutOfTime:
                 break
-            best = move
+            best, reached = move, depth
             if abs(value) >= WIN - 1000:  # a forced win or loss is found, looking on won't help
                 break
+        if self.noise and reached:
+            try:
+                best = self._blurred(player, reached)
+            except OutOfTime:
+                pass
         return [{"col": best}]
+
+    def _blurred(self, player, depth):
+        """The best move once every move's exact score has had noise put on it."""
+        scored = []
+        for col in self._moves(None):
+            if self._play(player, col):
+                value = WIN
+            else:
+                value = -self._search(3 - player, depth - 1, -WIN * 2, WIN * 2, 1)
+            self._undo(player, col)
+            if abs(value) < WIN - 1000:
+                value += self.rng.uniform(-self.noise, self.noise)
+            scored.append((value, col))
+        return max(scored)[1]
 
     # ---- the position, from player 1's side
 

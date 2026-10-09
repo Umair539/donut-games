@@ -3,7 +3,13 @@
 SearchBot looks ahead with alpha-beta search a whole turn at a time (a multi-jump is one
 turn), going a turn deeper each time until its time is up. Where its look ahead ends in the
 middle of an exchange of donuts, it carries on looking at jumps only, so it doesn't stop just
-before losing one back. It works on its own flat copy of the board (square = row * 8 + col)
+before losing one back.
+
+Easier levels look fewer turns ahead, look less far into exchanges, and put some random noise
+on each turn's score before picking, so they sometimes play a worse one. A win or a loss they
+can see is never blurred.
+
+It works on its own flat copy of the board (square = row * 8 + col)
 as the game's own checks are far too slow to search with."""
 import random
 import time
@@ -148,10 +154,12 @@ class RandomBot:
 
 
 class SearchBot:
-    def __init__(self, rng=None, seconds=1.0, max_depth=30):
+    def __init__(self, rng=None, seconds=1.0, max_depth=30, noise=0, settle=QUIET_DEPTH):
         self.rng = rng or random.Random()
         self.seconds = seconds
         self.max_depth = max_depth
+        self.noise = noise  # how far each turn's score may be pushed up or down at random
+        self.settle = settle  # turns of jumps looked at past the end of the search
 
     def choose(self, game, player):
         self.forced = game.forced
@@ -166,14 +174,32 @@ class SearchBot:
         self.nodes = 0
         self.deadline = time.monotonic() + self.seconds
         best = options[0]
+        reached = 0
         for depth in range(1, self.max_depth + 1):
             try:
                 value, best = self._root(options, player, game.quiet, depth, best)
             except OutOfTime:
                 break
+            reached = depth
             if abs(value) >= WIN - 1000:
                 break
+        if self.noise and reached:
+            try:
+                best = self._blurred(options, player, game.quiet, reached)
+            except OutOfTime:
+                pass
         return best[0]
+
+    def _blurred(self, options, player, quiet, depth):
+        """The best turn once every turn's exact score has had noise put on it."""
+        scored = []
+        for n, (actions, after, is_quiet) in enumerate(options):
+            left = quiet + 1 if is_quiet else 0
+            value = -self._search(after, 3 - player, left, depth - 1, -WIN * 2, WIN * 2, 1)
+            if abs(value) < WIN - 1000:
+                value += self.rng.uniform(-self.noise, self.noise)
+            scored.append((value, n))
+        return options[max(scored)[1]]
 
     def _root(self, options, player, quiet, depth, first):
         options = [first] + [o for o in options if o is not first]
@@ -195,7 +221,7 @@ class SearchBot:
         if quiet >= QUIET_LIMIT:
             return 0
         if depth <= 0:
-            return self._settle(board, player, alpha, beta, ply, QUIET_DEPTH)
+            return self._settle(board, player, alpha, beta, ply, self.settle)
 
         key = (bytes(board), player)
         saved = self.table.get(key)

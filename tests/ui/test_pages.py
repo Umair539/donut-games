@@ -296,9 +296,9 @@ def test_chat(player):
 def test_connect4_against_the_bot(player):
     ann = player("Ann")
     host(ann, "Connect Donut")
-    ann.get_by_role("button", name="Add a bot").click()
-    expect(ann.locator("#lobby-players")).to_contain_text("Bot")
-    expect(ann.get_by_role("button", name="Add a bot")).to_be_hidden()  # the room is full
+    ann.locator("#add-bots").get_by_role("button", name="Medium").click()
+    expect(ann.locator("#lobby-players")).to_contain_text("Medium Bot")
+    expect(ann.locator("#add-bots")).to_be_hidden()  # the room is full
     ann.click("#start")
     column(ann, 3).click()
     expect(status(ann)).to_have_text("Their turn")
@@ -514,7 +514,7 @@ def test_checkers_without_forced_jumps_can_end_a_chain(player, live_server):
 def test_checkers_against_the_bot(player):
     ann = player("Ann")
     host(ann, "Donut Checkers")
-    ann.get_by_role("button", name="Add a bot").click()
+    ann.locator("#add-bots").get_by_role("button", name="Easy").click()
     ann.click("#start")
     square(ann, "c3").click()
     square(ann, "d4").click()

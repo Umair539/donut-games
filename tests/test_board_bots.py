@@ -198,16 +198,49 @@ def test_checkers_copy_is_separate():
     assert game.board[5][0] == 1 and game.turn == 1 and game.last == []
 
 
+# ---- levels
+
+
+@pytest.mark.parametrize("level", ["easy", "medium", "hard"])
+def test_every_connect4_level_takes_a_win_and_blocks_one(level):
+    game = Connect4()
+    drops(game, [0, 6, 1, 6, 2])
+    for seed in range(10):
+        bot = BOTS["connect4"][level](random.Random(seed))
+        assert bot.choose(game.copy(), 2) == [{"col": 3}]  # block
+    game.move(2, 5)
+    for seed in range(10):
+        bot = BOTS["connect4"][level](random.Random(seed))
+        assert bot.choose(game.copy(), 1) == [{"col": 3}]  # win
+
+
+@pytest.mark.parametrize("level", ["easy", "medium", "hard"])
+def test_every_checkers_level_takes_the_last_donut(level):
+    game = checkers_from([
+        ". . . . . . . .",
+        ". . . . . . . .",
+        ". . . . . . . .",
+        ". . . . . . . .",
+        ". . . p . . . .",
+        ". . . . b . . .",
+        ". . . . . . . .",
+        ". b . . . . . .",
+    ], forced=False)
+    for seed in range(10):
+        bot = BOTS["checkers"][level](random.Random(seed))
+        assert bot.choose(game.copy(), 1) == [{"from": [5, 4], "to": [3, 2]}]
+
+
 # ---- in a room
 
 
 @pytest.mark.parametrize("name, cls", [("connect4", Connect4), ("checkers", Checkers)])
 def test_a_bot_plays_its_turn_in_a_room(monkeypatch, name, cls):
     quick = {"connect4": c4.SearchBot, "checkers": ck.SearchBot}[name]
-    monkeypatch.setitem(BOTS, name, {"hard": lambda rng: quick(rng, seconds=0.05)})
+    monkeypatch.setitem(BOTS, name, {"easy": lambda rng: quick(rng, seconds=0.05)})
     room = Room("ABCDEF", cls, cls.validate_settings({}), now=0)
     host = room.join(None, 0, "Ann")
-    room.add_bot(host, "hard", 0)
+    room.add_bot(host, "easy", 0)
     room.start(host, now=0)
     first = room.game.turn
     if first == 1:

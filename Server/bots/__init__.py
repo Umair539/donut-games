@@ -1,6 +1,6 @@
 from functools import partial
 
-from Server.bots import switch
+from Server.bots import checkers, connect4, switch
 
 # the computer players each game offers in the lobby, by game name and then level, easiest
 # first. A bot has choose(game, player), which returns the actions that make its turn, and is
@@ -15,4 +15,8 @@ BOTS = {
         # beat medium; obvious moves stop early
         "hard": partial(switch.SearchBot, seconds=5.0),
     },
+    # alpha-beta search, a move deeper at a time for a second; the room's pause before a bot
+    # moves hides most of it
+    "connect4": {"hard": partial(connect4.SearchBot, seconds=1.0)},
+    "checkers": {"hard": partial(checkers.SearchBot, seconds=1.0)},
 }

@@ -16,12 +16,13 @@ The server and the page around each game are shared, so a new game only has to p
 
 ### Server/games: one file per game
 * **`connect4.py`**: Connect Donut rules, move validation and win checks.
-* **`checkers.py`**: Donut Checkers rules: compulsory jumps, multi-jumps, kings and the 40-move draw.
+* **`checkers.py`**: Donut Checkers rules: multi-jumps, the forced jumps setting, kings and the 40-move draw.
 * **`switch.py`**: Donut Cards rules: dealing, power cards, drawing and adding decks.
 * **`__init__.py`**: The list of games that can be hosted.
 
 ### Server/bots: computer players
 * **`switch.py`**: The Donut Cards bots, see [Bots](#bots).
+* **`connect4.py`**, **`checkers.py`**: The Connect Donut and Donut Checkers bots.
 * **`__init__.py`**: Which bots each game offers, by level.
 
 ### web
@@ -161,6 +162,8 @@ On your turn you either **play** or **pick up**. Your first card must match the 
 ---
 
 ## Bots
+
+Connect Donut and Donut Checkers each have one bot, in **`Server/bots/`**. Both look ahead with alpha-beta search, a move deeper each time, for a second, then play the best move from the deepest search they finished. On a normal Connect Donut board that's 10 to 12 moves ahead. In checkers a multi-jump counts as one turn and it sees 6 to 10 turns ahead, and where its look ahead ends in the middle of an exchange it carries on through the jumps, so it doesn't stop just before losing a donut back. They play on their own quick copy of the board, and the tests check the checkers bot's list of moves matches the game's in every position of many random games.
 
 Donut Cards has three computer players in **`Server/bots/switch.py`**. The lobby only offers the best, Hard, so it just says *Add a bot* and the bots are called Bot, Bot 2 and so on (with more than one level on offer, the buttons and names say which). The other two are kept because Hard is built on Medium, and to measure against.
 

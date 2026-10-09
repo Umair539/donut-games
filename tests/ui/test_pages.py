@@ -293,6 +293,19 @@ def test_chat(player):
     expect(bob.locator("#chat-log li").last).to_have_text("Ann good luck")
 
 
+def test_connect4_against_the_bot(player):
+    ann = player("Ann")
+    host(ann, "Connect Donut")
+    ann.get_by_role("button", name="Add a bot").click()
+    expect(ann.locator("#lobby-players")).to_contain_text("Bot")
+    expect(ann.get_by_role("button", name="Add a bot")).to_be_hidden()  # the room is full
+    ann.click("#start")
+    column(ann, 3).click()
+    expect(status(ann)).to_have_text("Their turn")
+    expect(status(ann)).to_have_text("Your turn", timeout=15_000)  # the bot has moved
+    expect(ann.locator("img[alt=\"opponent's donut\"]")).to_have_count(1)
+
+
 # ---- getting back in
 
 
@@ -496,3 +509,15 @@ def test_checkers_without_forced_jumps_can_end_a_chain(player, live_server):
     expect(status(bob)).to_have_text("Your turn")
     expect(ann.locator("[data-stop]")).to_be_hidden()
     expect(square(bob, "d4")).to_have_accessible_name("d4, your donut")
+
+
+def test_checkers_against_the_bot(player):
+    ann = player("Ann")
+    host(ann, "Donut Checkers")
+    ann.get_by_role("button", name="Add a bot").click()
+    ann.click("#start")
+    square(ann, "c3").click()
+    square(ann, "d4").click()
+    expect(status(ann)).to_have_text("Their turn")
+    expect(status(ann)).not_to_have_text("Their turn", timeout=15_000)  # the bot has moved
+    expect(ann.locator(".ck-cell.trail")).not_to_have_count(0)

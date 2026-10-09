@@ -202,6 +202,15 @@ class Checkers(BaseGame):
         self.round += 1
         self._reset(first=(self.round + 1) % 2 + 1)  # alternate who starts
 
+    def copy(self):
+        """A separate game in the same state, for a bot to think about."""
+        game = Checkers.__new__(Checkers)
+        game.__dict__.update(self.__dict__)
+        game.board = [list(row) for row in self.board]
+        game.jumping = list(self.jumping) if self.jumping else None
+        game.last = [list(s) for s in self.last]
+        return game
+
     def snapshot(self):
         return {
             "forced": self.forced,

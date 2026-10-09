@@ -193,4 +193,5 @@ def test_games_listing_has_bots(client, monkeypatch):
     monkeypatch.undo()  # the real list
     games = {g["name"]: g for g in client.get("/api/games").json()}
     assert games["switch"]["bots"] == ["hard"]
-    assert games["connect4"]["bots"] == []
+    assert games["connect4"]["bots"] == ["hard"]
+    assert games["checkers"]["bots"] == ["hard"]

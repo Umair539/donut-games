@@ -99,6 +99,13 @@ class Connect4(BaseGame):
         self.round += 1
         self.turn = (self.round + 1) % 2 + 1  # alternate who starts
 
+    def copy(self):
+        """A separate game in the same state, for a bot to think about."""
+        game = Connect4.__new__(Connect4)
+        game.__dict__.update(self.__dict__)
+        game.board = [list(col) for col in self.board]
+        return game
+
     def snapshot(self):
         return self.to_dict()  # nothing is hidden, so the view is the whole state
 
